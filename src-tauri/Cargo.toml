@@ -1,6 +1,6 @@
 [package]
 name = "prism-relay"
-version = "0.1.0"
+version = "1.0.0"
 description = "Local, selective Lunar Client and Minecraft settings sharing"
 edition = "2021"
 license = "GPL-3.0-or-later"

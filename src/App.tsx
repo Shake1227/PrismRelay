@@ -23,6 +23,7 @@ import type {
   Preferences,
 } from "./models";
 import { backend, isDesktop } from "./services/backend";
+import { APP_VERSION } from "./version";
 import { usePreferences } from "./hooks/usePreferences";
 import { PrismMark } from "./components/PrismMark";
 import { ErrorBanner } from "./components/ErrorBanner";
@@ -102,7 +103,7 @@ function WorkspaceApp({
   const [backups, setBackups] = useState<BackupManifest[]>([]);
   const [info, setInfo] = useState<AppInfo>({
     name: "Prism Relay",
-    version: "0.1.0",
+    version: APP_VERSION,
     platform: "",
     repository: "https://github.com/SHake1227/prism-relay",
     license: "GPL-3.0-or-later",

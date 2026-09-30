@@ -9,6 +9,7 @@ import type {
   Setting,
   ShareMetadata,
 } from "../models";
+import { APP_VERSION } from "../version";
 
 const fields: [string, string, string, JsonValue][] = [
   ["Video", "Display", "FOV", 90],
@@ -157,7 +158,7 @@ export function encodeDemo(
 ): EncodedShare {
   const payload: DecodedShare = {
     formatVersion: 1,
-    applicationVersion: "0.1.0",
+    applicationVersion: APP_VERSION,
     createdAt: "2026-09-30T03:24:00Z",
     metadata,
     settings,

@@ -111,7 +111,7 @@ npm run tauri build
 
 Windows では MSI とセットアップ EXE、macOS ではアプリと DMG を生成します。GitHub Actions でも4種類の環境でテストとビルドを実行します。
 
-`v0.1.0` のようなタグを Push すると、インストーラー、対応するソース、`SHA256SUMS.txt` を GitHub Releases に公開します。依存ライブラリを更新した際は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
+`v1.0.0` のようなタグを Push すると、インストーラー、対応するソース、`SHA256SUMS.txt` を GitHub Releases に公開します。依存ライブラリを更新した際は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
 
 ビルド成果物、既知のゲーム設定・認証ファイル、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
 

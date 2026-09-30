@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { APP_VERSION } from "../version";
 import type {
   AppInfo,
   BackupManifest,
@@ -85,7 +86,7 @@ export const backend = {
       ? invoke<AppInfo>("get_app_info")
       : Promise.resolve({
           name: "Prism Relay",
-          version: "0.1.0",
+          version: APP_VERSION,
           platform: "Sample",
           repository: "https://github.com/SHake1227/prism-relay",
           license: "GPL-3.0-or-later",
@@ -94,8 +95,8 @@ export const backend = {
     isDesktop
       ? invoke<UpdateInfo>("check_updates")
       : Promise.resolve({
-          currentVersion: "0.1.0",
-          latestVersion: "0.1.0",
+          currentVersion: APP_VERSION,
+          latestVersion: APP_VERSION,
           updateAvailable: false,
           releaseUrl: "https://github.com/SHake1227/prism-relay/releases",
         }),

@@ -1,6 +1,6 @@
 # Verified Lunar configuration schema
 
-Prism Relay 0.1.0 inspected the key names and JSON types of locally installed Lunar game settings on 2026-09-30. The inspection was read-only. No account or authentication files were opened. No real values were copied into this repository, fixtures, logs, or share codes.
+Prism Relay 1.0.0 inspected the key names and JSON types of locally installed Lunar game settings on 2026-09-30. The inspection was read-only. No account or authentication files were opened. No real values were copied into this repository, fixtures, logs, or share codes.
 
 The verified layout is `.lunarclient/settings/game/<profile>/`, containing `mods.json`, `general.json`, `controls.json`, and `performance.json`. Minecraft option files were also present at `.lunarclient/profiles/<version>/options.txt`. The installed options files used modern `key.keyboard.*` binding values and contained Lunar `key_Freelook` and OptiFine `key_of.key.zoom` bindings. The parser also accepts bounded legacy numeric key codes. Profiles and version folders are discovered locally; the scanner does not assume that a particular profile or version exists. A manually selected game settings folder or individual profile is supported.
 

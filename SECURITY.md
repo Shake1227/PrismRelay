@@ -6,4 +6,4 @@ Review the import differences and close the game before applying changes. Backup
 
 Report security issues through the repository's private vulnerability reporting feature when available. Include a minimal synthetic example and reproduction steps. Do not include account files, tokens, user backups or private configuration.
 
-Version 0.1.x is the currently supported release series. The scanner intentionally refuses unverified fields and formats. A successful checksum is not evidence that a sender is trusted.
+Version 1.0.x is the currently supported release series. The scanner intentionally refuses unverified fields and formats. A successful checksum is not evidence that a sender is trusted.

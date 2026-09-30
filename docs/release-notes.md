@@ -1,4 +1,4 @@
-# Prism Relay 0.1.0
+# Prism Relay 1.0.0
 
 MinecraftとLunar Clientの設定を、共有コードで別のPCへ持ち運べるアプリです。共有する項目を選び、適用前に差分を確認できます。
 
