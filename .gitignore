@@ -11,6 +11,7 @@ coverage/
 test-results/
 playwright-report/
 artifacts/
+.artifacts/
 backups/
 userdata/
 *.pem
@@ -21,3 +22,18 @@ userdata/
 .vscode/
 src-tauri/gen/
 *.tsbuildinfo
+package/
+.cache/
+.tauri/
+.wix/
+*.msi
+*.dmg
+*.exe
+*.dll
+*.app/
+*.zip
+*.tar.gz
+src-tauri/icons/android/
+src-tauri/icons/ios/
+src-tauri/icons/Square*Logo.png
+src-tauri/icons/StoreLogo.png

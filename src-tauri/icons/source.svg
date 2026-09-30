@@ -1,14 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="back" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#18283d"/><stop offset="1" stop-color="#111326"/></linearGradient>
-    <linearGradient id="prism" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#93f2dd"/><stop offset=".45" stop-color="#a5b4ff"/><stop offset="1" stop-color="#9c7deb"/></linearGradient>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e1f6ff" stop-opacity=".9"/><stop offset="1" stop-color="#b6a9ff" stop-opacity=".3"/></linearGradient>
+    <linearGradient id="prism-gradient" x1="8" y1="10" x2="59" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9a8fff"/>
+      <stop offset=".5" stop-color="#c4bfff"/>
+      <stop offset="1" stop-color="#58ddcf"/>
+    </linearGradient>
   </defs>
-  <rect x="24" y="24" width="976" height="976" rx="224" fill="url(#back)"/>
-  <rect x="42" y="42" width="940" height="940" rx="210" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="4"/>
-  <path d="M512 170 804 347 804 677 512 854 220 677 220 347Z" fill="url(#prism)"/>
-  <path d="M512 170 512 512 220 677 220 347Z" fill="#ffffff" fill-opacity=".22"/>
-  <path d="M512 170 804 347 512 512 220 347Z" fill="url(#face)"/>
-  <path d="M512 512 804 677 512 854Z" fill="#30317a" fill-opacity=".3"/>
-  <path d="M512 170 804 347 804 677 512 854 220 677 220 347Z M220 347 512 512 804 347 M512 512 512 854" fill="none" stroke="#ffffff" stroke-opacity=".56" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M32 5 57 19v27L32 60 7 46V19L32 5Z" fill="url(#prism-gradient)" fill-opacity=".08" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+  <path d="m32 14 18 32H14l18-32Z" fill="url(#prism-gradient)" fill-opacity=".2" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+  <path d="m32 14 4.5 22L50 46H14l18-32Z" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+  <path d="m14 46 22.5-10L32 60M36.5 36 57 19M32 14V5" stroke="url(#prism-gradient)" stroke-opacity=".5"/>
 </svg>

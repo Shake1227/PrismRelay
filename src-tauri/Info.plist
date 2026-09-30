@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Scan a Prism Relay share code with your camera.</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string><string>ja</string><string>ko</string><string>zh-Hans</string><string>fi</string><string>es</string><string>de</string></array>
+</dict>
+</plist>

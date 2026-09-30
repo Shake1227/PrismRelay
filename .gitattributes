@@ -1,0 +1,4 @@
+THIRD_PARTY_NOTICES.txt linguist-documentation
+public/third-party-notices.txt linguist-vendored
+docs/** linguist-documentation
+tests/fixtures/** linguist-vendored

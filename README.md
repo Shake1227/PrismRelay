@@ -1,88 +1,90 @@
 # Prism Relay
 
-Lunar Client と Minecraft の設定を、選んだ項目だけ共有する Windows / macOS アプリです。設定をローカルで解析し、サーバー不要の共有コードにまとめます。
+Minecraft と Lunar Client の設定を選んで、別の PC に持ち運ぶためのアプリです。操作設定だけ、HUD だけ、といった共有ができます。受け取った共有コードは、現在の設定との差分を確認してから適用できます。
 
-[Download](https://github.com/Shake1227/prism-relay/releases) · [Share format](docs/share-format.md) · [Verified Lunar schema](docs/lunar-schema.md)
+[ダウンロード](https://github.com/Shake1227/prism-relay/releases) · [共有コードの仕様](docs/share-format.md) · [Lunar 対応範囲](docs/lunar-schema.md)
 
-![Prism Relay — sample data](docs/screenshots/home.jpg)
+![Prism Relay](docs/screenshots/home.jpg)
 
-## Features
+## できること
 
-- 独自のガラス調 UI、日本語、ダーク / ライト / OS 連動テーマ、Reduce Motion。
-- 設定フォルダの自動検出、プロファイル選択、検索・親子選択に対応したツリー。
-- HUD、PvP、パフォーマンス、操作設定などのプリセットとカスタムプリセット保存。
-- プレビュー、圧縮コード、コピー、ファイル保存、短いコードの QR 表示。
-- Import 時の再選択、適用先選択、差分、自動バックアップ。
-- Atomic Write、Rollback、中断した処理の復旧、Restore。
-- 手動での更新確認。自動ダウンロード・自動適用はありません。
+- Minecraft / Lunar Client の設定フォルダを自動検出
+- ツリーと検索で共有する項目を選択、選択内容をプリセットに保存
+- 共有コードの作成、コピー、ファイル保存、QR コード表示
+- QR 画像やカメラから共有コードを読み取り
+- Import 時の項目選択と差分表示
+- 適用前の自動バックアップ、手動保存、復元
+- ダーク / ライト / OS 連動テーマ、アニメーションの軽減
+- 日本語、英語、韓国語、中国語、フィンランド語、スペイン語、ドイツ語
 
-## Supported platforms
+Minecraft と Lunar Client のカードには、端末にあるアプリのアイコンを表示します。アイコンが見つからない場合や画像を読み込めない場合は、標準アイコンを使います。
 
-| Platform | Release artifact | Requirement |
+## インストール
+
+| OS | ダウンロードするファイル | 対応環境 |
 | --- | --- | --- |
-| Windows x64 | Portable ZIP / `PrismRelay.exe` | Windows 10 / 11、Microsoft WebView2 |
-| Windows ARM64 | Portable ZIP / `PrismRelay.exe` | Windows 11 ARM64、Microsoft WebView2 |
-| macOS Apple Silicon | ZIP / `.app` | macOS 11 以降 |
-| macOS Intel | ZIP / `.app` | macOS 11 以降 |
+| Windows x64 | `.msi` または `-setup.exe` | Windows 10 / 11 |
+| Windows ARM64 | `.msi` または `-setup.exe` | Windows 11 ARM64 |
+| macOS Apple Silicon | `.dmg` | macOS 11 以降 |
+| macOS Intel | `.dmg` | macOS 11 以降 |
 
-ZIP を展開して起動します。アプリのインストーラーは使用しません。Windows では PC のアーキテクチャに合う x64 または ARM64 の ZIP を選んでください。Windows 11 には通常 WebView2 が含まれます。未導入の場合は [Microsoft WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) が必要です。
+Windows は PC の種類に合うインストーラーを実行してください。画面の案内に従ってインストールすると、スタートメニューから起動できます。WebView2 が必要な場合は、インストーラーが導入を案内します。
 
-初期版は開発者証明書による署名・macOS の公証を行っていません。OS が確認を求める場合があります。macOS では起動を試した後、「システム設定 → プライバシーとセキュリティ」で対象アプリを確認できます。[署名の構成](docs/signing.md)を用意しています。
+macOS は DMG を開き、Prism Relay を Applications フォルダへドラッグしてください。
 
-## How to use
+初回リリースは開発者署名・macOS 公証を取得していないため、OS の確認画面が出ることがあります。macOS では起動を試した後、「システム設定 → プライバシーとセキュリティ」で対象アプリを確認できます。署名を導入する際の設定は [docs/signing.md](docs/signing.md) にまとめています。
 
-ゲームを終了してから操作することをおすすめします。起動中の場合は警告し、勝手にプロセスを終了しません。
+## 使い方
 
-### Export
+### 設定を共有する
 
-1. 自動検出された設定を確認します。未検出の場合は「設定」からフォルダを指定します。
-2. 「エクスポート」で Minecraft の設定プロファイルと Lunar のプロファイルを選びます。
-3. ツリーやプリセットで共有項目を選び、プレビュー後にコードを作成します。
-4. コピーまたは `.prism` ファイルで持ち運びます。
+1. 「エクスポート」で Minecraft と Lunar の対象プロファイルを選びます。
+2. 共有したい項目を選び、プレビューを確認します。
+3. コードを作成し、コピー・ファイル・QR のいずれかで共有します。
 
-`PRS1:` コードは MessagePack + Zstandard で圧縮し、SHA-256 の破損チェックを含みます。長いコードは QR ではなくファイルで共有してください。Resource Packs はパック名の設定であり、パック本体を含みません。
+共有コードは圧縮されています。Discord の通常メッセージに収まる長さなら、そのまま貼り付けて送れます。項目が多くコードが長い場合は、`.prism` ファイルを添付すると確実です。Resource Packs の共有対象はパック名の設定です。パック本体は別途用意してください。
 
-### Import
+### 共有コードを読み込む
 
-1. コードを貼り付けるか `.prism` を開きます。貼り付けただけでは適用されません。
-2. 項目と適用先を選び、現在の値との差分を確認します。
-3. 適用すると変更前の設定が自動保存されます。
+1. 「インポート」でコードを貼り付けるか、`.prism` ファイルを開きます。QR 画像の選択とカメラスキャンも使えます。
+2. 適用する項目と対象プロファイルを選びます。
+3. 差分を確認して適用します。変更前の設定は自動で保存されます。
 
-適用先にない項目や型の異なる項目は警告して除外します。プレビュー後に設定が変わった場合は再確認が必要です。共有中のプロファイル名は匿名化され、ファイルパスとして使用されません。
+カメラを使う場合は、OS のアクセス許可が必要です。画像とカメラ映像は端末内で処理されます。
 
-### Backup and restore
+設定はゲーム終了後の適用をおすすめします。起動中は警告が表示されます。適用先に存在しない項目や、値の形式が合わない項目は差分画面で確認できます。
 
-Import と Restore の前に対象ファイルをアプリ専用フォルダへ保存します。「バックアップ」から手動保存、詳細、保存先表示、復元、削除を操作できます。復元前にも現在の状態を保存します。
+### バックアップから戻す
 
-一時ファイルを検証・同期してから Atomic Replace します。複数ファイルの処理には永続的な記録を残し、起動時に中断処理を復旧します。別アプリによる変更を検出した場合は上書きせず、バックアップを保護します。復旧が必要なバックアップを明示的に選択して復元できます。
+「バックアップ」で日時と対象ファイルを確認し、復元するバックアップを選びます。復元前の状態も保存されるので、戻す操作を取り消す際にも使えます。
 
-保存先は OS のアプリデータディレクトリ内の `io.github.shake1227.prismrelay/backups` です。バックアップには元ファイル全体と元パスが含まれるため、端末内の個人データとして扱ってください。共有コードには含めません。
+バックアップの保存先は OS のアプリデータフォルダ内の `io.github.shake1227.prismrelay/backups` です。元ファイル全体と元パスを含むため、端末内の個人データとして扱ってください。共有コードとは別に管理されます。
 
-## Security
+## 設定ファイルの扱い
 
-共有対象を検証済みのファイル・キー・値形式の許可リストに限定します。アカウント、認証情報、Token、Cookie、サーバーアドレス、ログ、未知項目、Waypoints、マクロは共有しません。
+共有対象は、形式を確認したファイルとキーに限定しています。共有コードに含まれるのは選択した設定値とバージョン情報です。アカウント情報、認証トークン、サーバーアドレス、ログは対象外です。
 
-Minecraft の未知行と Lunar の未知 JSON 値を保持し、選択した既存項目だけ変更します。シンボリックリンク、不正パス、過大なファイルやコード、破損コード、未対応バージョンを拒否します。
+変更するのは選択した既存項目だけです。Minecraft の未知の行や Lunar の未知の JSON フィールドは元のまま保持します。適用前にバックアップを取り、一時ファイルを検証してから置き換えます。処理が中断した場合は記録から復旧し、別のアプリによる変更を検出した場合はバックアップを保護します。
 
-SHA-256 は破損検出用で、送信者の認証ではありません。コードは暗号化されません。カスタムリソースパック名は選択すると含まれるため、必要に応じてそのカテゴリを外してください。
+共有コードの SHA-256 は破損を検出するためのものです。送信者の本人確認や暗号化には使われません。カスタムリソースパック名にはファイル名が含まれるため、共有前にその項目を確認してください。
 
-## Privacy
+## プライバシー
 
-設定の読み取り・共有コード生成・Import・バックアップはローカルで動作します。Analytics、Telemetry、アカウント登録、共有用 Backend はありません。設定値やコード全体を診断ログに記録しません。
+設定の解析、コード生成、Import、バックアップ、QR 読み取りは端末内で完結します。更新確認を押すと GitHub API に接続します。GitHub・X・ライセンスのリンクはブラウザで開きます。
 
-更新確認を押した場合だけ GitHub API に接続します。GitHub / ライセンス / リリースノートのボタンはブラウザで開きます。設定データは送信しません。
+アカウント登録や共有用サーバーは不要です。診断ログには処理の種類と結果だけを記録します。
 
-## Current limits
+## 対応範囲
 
-Lunar 対応は実ファイルを読み取り専用で調査したスキーマに基づきます。未検証の設定を推測で書き換えません。`optionsof.txt` は検出とローカルバックアップに対応し、初期版では共有・Import の対象外です。
+Lunar は実際の設定構造を確認したスキーマに対応しています。Waypoints、マクロ、未検証の項目は対象外です。`optionsof.txt` は検出とバックアップに対応しています。
 
-HUD 座標は保存された形式のまま転送します。解像度による自動補正は未実装なので、適用後に位置を確認してください。アクティブプロファイルや Lunar のバージョンは非公開情報から推測しません。
+HUD 座標は Lunar に保存された値を引き継ぎます。解像度が異なる端末では、適用後に位置を確認してください。
 
-ブラウザの `npm run dev` は明示されたサンプルモードです。合成データと `PRDEMO1:` を使い、実際の設定にアクセスしません。本番の `PRS1:` はデスクトップ版で操作してください。README の画像もサンプルデータです。
+ブラウザの `npm run dev` で表示されるのはサンプルデータです。デスクトップ版で実際の設定を操作できます。README の画像もサンプルデータを使っています。
 
-## Development
+## 開発
 
-Node.js 22 以降、Rust 1.90 以降、[Tauri のプラットフォーム依存環境](https://v2.tauri.app/start/prerequisites/)が必要です。
+Node.js 22 以降、Rust 1.90 以降、[Tauri の開発環境](https://v2.tauri.app/start/prerequisites/)を用意してください。
 
 ```sh
 npm ci
@@ -99,24 +101,24 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D w
 cargo test --manifest-path src-tauri/Cargo.toml --locked
 ```
 
-`src/` は UI、`src-tauri/src/` は scanner / parser / safety / codec / importer / backup を担当します。テストは合成データと一時ディレクトリを使います。
+UI は `src/`、設定の解析・共有コード・Import・バックアップは `src-tauri/src/` にあります。テストには合成データと一時フォルダを使っています。
 
-## Build and releases
+## ビルドと公開
 
 ```sh
-npm run tauri build -- --bundles app
+npm run tauri build
 ```
 
-macOS は `src-tauri/target/release/bundle/macos/Prism Relay.app` を生成します。Windows は `npm run tauri build -- --no-bundle` でポータブル実行ファイルを生成します。
+Windows では MSI とセットアップ EXE、macOS ではアプリと DMG を生成します。GitHub Actions でも4種類の環境でテストとビルドを実行します。
 
-GitHub Actions は Type Check、Lint、Test、Windows x64 / Windows ARM64 / macOS Apple Silicon / macOS Intel のビルドを実行します。package / Cargo / Tauri のバージョンを同期し、`v0.1.0` のようなタグを Push すると、プラットフォーム別 ZIP と `SHA256SUMS.txt` を Release に公開します。既存タグや Release は上書きしません。
+`v0.1.0` のようなタグを Push すると、インストーラー、対応するソース、`SHA256SUMS.txt` を GitHub Releases に公開します。依存ライブラリを更新した際は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
 
-依存ライブラリ更新後は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
+ビルド成果物、実際のゲーム設定、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
 
-## License
+## 作者とライセンス
 
-[GPL-3.0-or-later](LICENSE)。依存ライブラリの通知は [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) と About 画面に含まれます。
+**Shake_1227** · [X: @shake_1227](https://x.com/shake_1227)
 
-## Disclaimer
+[GPL-3.0-or-later](LICENSE)。依存ライブラリのライセンスは [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) とアプリの「アプリについて」で確認できます。
 
-Lunar Client、Minecraft、Microsoft、Mojang とは独立した非公式ツールです。各社との提携・承認・公式な関係はありません。各製品名・商標はそれぞれの権利者に帰属します。
+Prism Relay は個人開発の非公式ツールです。Lunar Client、Minecraft、Microsoft、Mojang の製品名・商標は各権利者に帰属します。
