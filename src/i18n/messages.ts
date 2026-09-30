@@ -3,6 +3,15 @@ import type { Language } from "../models";
 type MessageRow = [string, string, string, string, string, string, string];
 const rows: MessageRow[] = [
   [
+    "コードが長い場合はファイルとして保存して共有できます。",
+    "Long codes can be saved as files for sharing.",
+    "긴 코드는 파일로 저장하여 공유할 수 있습니다.",
+    "较长的代码可保存为文件进行分享。",
+    "Pitkän koodin voi tallentaa tiedostoksi ja jakaa.",
+    "Los códigos largos se pueden guardar como archivos para compartirlos.",
+    "Lange Codes können zum Teilen als Datei gespeichert werden.",
+  ],
+  [
     "サンプルの差分です。実際の設定ファイルにはアクセスしません。",
     "This comparison uses sample settings.",
     "샘플 설정의 변경 내용을 표시합니다.",

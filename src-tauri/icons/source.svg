@@ -6,8 +6,11 @@
       <stop offset="1" stop-color="#58ddcf"/>
     </linearGradient>
   </defs>
-  <path d="M32 5 57 19v27L32 60 7 46V19L32 5Z" fill="url(#prism-gradient)" fill-opacity=".08" stroke="url(#prism-gradient)" stroke-width="1.5"/>
-  <path d="m32 14 18 32H14l18-32Z" fill="url(#prism-gradient)" fill-opacity=".2" stroke="url(#prism-gradient)" stroke-width="1.5"/>
-  <path d="m32 14 4.5 22L50 46H14l18-32Z" stroke="url(#prism-gradient)" stroke-width="1.5"/>
-  <path d="m14 46 22.5-10L32 60M36.5 36 57 19M32 14V5" stroke="url(#prism-gradient)" stroke-opacity=".5"/>
+  <rect width="64" height="64" fill="#171824"/>
+  <g transform="translate(5.12 5.12) scale(.84)">
+    <path d="M32 5 57 19v27L32 60 7 46V19L32 5Z" fill="url(#prism-gradient)" fill-opacity=".08" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+    <path d="m32 14 18 32H14l18-32Z" fill="url(#prism-gradient)" fill-opacity=".2" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+    <path d="m32 14 4.5 22L50 46H14l18-32Z" stroke="url(#prism-gradient)" stroke-width="1.5"/>
+    <path d="m14 46 22.5-10L32 60M36.5 36 57 19M32 14V5" stroke="url(#prism-gradient)" stroke-opacity=".5"/>
+  </g>
 </svg>

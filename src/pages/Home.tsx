@@ -248,9 +248,7 @@ export function Home({
               <ArrowUpRight size={17} />
             </div>
             <div>
-              <strong>
-                {lastExport ? t("共有コードを作成") : t("はじめての設定共有")}
-              </strong>
+              <strong>{t("共有コードを作成")}</strong>
               <p>
                 {lastExport
                   ? formatDate(lastExport, locale)
@@ -268,11 +266,7 @@ export function Home({
         </section>
         <section className="privacy-card">
           <ShieldCheck size={26} />
-          <h3>
-            {t("変更前の設定を、")}
-            <br />
-            {t("バックアップ。")}
-          </h3>
+          <h3>{t("バックアップ")}</h3>
           <p>
             {t(
               "適用前に元の設定を保存します。変更した項目は差分で確認できます。",

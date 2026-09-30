@@ -264,10 +264,6 @@ export function Settings({
             )}
           </p>
         </div>
-        <span className="status-pill">
-          <Check size={12} />
-          {t("LOCAL ONLY")}
-        </span>
       </section>
     </div>
   );

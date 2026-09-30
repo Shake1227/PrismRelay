@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import type { ScanReport, TargetProfiles } from "../models";
 import { minecraftProfiles } from "../utils/profiles";
+import { ApplicationIcon } from "./ApplicationIcon";
 export function ProfileSelect({
   scan,
   value,
@@ -16,7 +17,15 @@ export function ProfileSelect({
   return (
     <div className="profile-selects">
       <label>
-        <span>Minecraft {target ? t("の適用先") : t("プロフィール")}</span>
+        <span className="profile-label">
+          <ApplicationIcon
+            source="minecraft"
+            data={scan.applicationIcons?.minecraft}
+            size={15}
+            decorative
+          />
+          Minecraft {target ? t("の適用先") : t("プロフィール")}
+        </span>
         <select
           value={value.minecraftProfile || ""}
           onChange={(event) =>
@@ -33,7 +42,15 @@ export function ProfileSelect({
         </select>
       </label>
       <label>
-        <span>Lunar {target ? t("の適用先") : t("プロフィール")}</span>
+        <span className="profile-label">
+          <ApplicationIcon
+            source="lunar"
+            data={scan.applicationIcons?.lunar}
+            size={15}
+            decorative
+          />
+          Lunar {target ? t("の適用先") : t("プロフィール")}
+        </span>
         <select
           value={value.lunarProfile || ""}
           onChange={(event) =>

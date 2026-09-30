@@ -9,8 +9,6 @@ import {
   Plus,
   QrCode,
   Share2,
-  ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import QRCode from "qrcode";
 import type { EncodedShare, Setting, TargetProfiles } from "../models";
@@ -211,34 +209,19 @@ export function Export({
         <div className="result-icon">
           <Check size={26} />
         </div>
-        <span className="eyebrow">{t("SHARE CODE CREATED")}</span>
         <h2>{t("共有コードを作成しました。")}</h2>
         <p>
-          {encoded.settingCount} {t("項目を、ひとつのコードに。")}{" "}
-          {isDesktop
-            ? t("別のデバイスで読み込めます。")
-            : t("これは体験用のサンプルコードです。")}
+          {encoded.settingCount} {t("項目")}
         </p>
         <div className="code-meta">
           <span>
             {encoded.code.length} {t("文字")}
           </span>
-          <span>{formatBytes(encoded.compressedBytes)}</span>
-          <span>
-            {isDesktop ? t("チェックサム付き") : t("PRDEMO1 · サンプル")}
-          </span>
-          <span>{t("v1 format")}</span>
+          {!isDesktop && <span>{t("サンプル")}</span>}
         </div>
-        {encoded.code.length <= 2000 && (
-          <p className="share-file-hint">
-            {t("Discord のメッセージにそのまま貼り付けて共有できます。")}
-          </p>
-        )}
         {encoded.code.length > 2000 && (
           <p className="share-file-hint">
-            {t(
-              "Discord のメッセージ上限（2000文字）を超えています。.prism ファイルとして保存し、添付して共有してください。",
-            )}
+            {t("コードが長い場合はファイルとして保存して共有できます。")}
           </p>
         )}
         <textarea
@@ -349,7 +332,6 @@ export function Export({
               <h3>{t("共有する設定")}</h3>
               <p>{t("必要な設定だけを選択してください。")}</p>
             </div>
-            <Sparkles size={19} />
           </div>
           <ProfileSelect
             scan={scan}
@@ -391,6 +373,7 @@ export function Export({
           </div>
           <TreePicker
             settings={settings}
+            applicationIcons={scan.applicationIcons}
             selected={selected}
             onChange={changeSelection}
           />
@@ -416,13 +399,6 @@ export function Export({
                   {isDesktop ? t("圧縮後のサイズ") : t("サンプルサイズ")}
                 </span>
                 <strong>{formatBytes(encoded.compressedBytes)}</strong>
-                <p>
-                  {isDesktop
-                    ? t("元のデータ {0}", {
-                        "0": formatBytes(encoded.uncompressedBytes),
-                      })
-                    : t("本番コードは圧縮・検証付き")}
-                </p>
               </div>
             )}
             <button
@@ -440,15 +416,6 @@ export function Export({
               <ArrowRight size={16} />
             </button>
           </section>
-          <div className="help-card">
-            <ShieldCheck size={19} />
-            <div>
-              <strong>{t("共有する項目を限定")}</strong>
-              <p>
-                {t("アカウント、認証情報、ログは共有コードに含まれません。")}
-              </p>
-            </div>
-          </div>
         </aside>
       </div>
       {savingPreset && (
@@ -457,8 +424,7 @@ export function Export({
           onClose={() => setSavingPreset(false)}
         >
           <p className="modal-copy">
-            {t("現在選択している")} {selectedSettings.length}{" "}
-            {t("項目を、次回もすぐに選べます。")}
+            {selectedSettings.length} {t("項目")}
           </p>
           <input
             className="text-input"

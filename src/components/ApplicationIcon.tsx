@@ -4,9 +4,13 @@ import type { Source } from "../models";
 export function ApplicationIcon({
   source,
   data,
+  size,
+  decorative = false,
 }: {
   source: Source;
   data?: string | null;
+  size?: number;
+  decorative?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [data]);
@@ -15,13 +19,20 @@ export function ApplicationIcon({
       <img
         className="application-icon-image"
         src={data}
-        alt={source === "minecraft" ? "Minecraft" : "Lunar Client"}
+        alt={
+          decorative
+            ? ""
+            : source === "minecraft"
+              ? "Minecraft"
+              : "Lunar Client"
+        }
+        style={size ? { width: size, height: size } : undefined}
         onError={() => setFailed(true)}
       />
     );
   return source === "minecraft" ? (
-    <SlidersHorizontal size={24} />
+    <SlidersHorizontal size={size ?? 24} />
   ) : (
-    <Moon size={25} />
+    <Moon size={size ?? 25} />
   );
 }

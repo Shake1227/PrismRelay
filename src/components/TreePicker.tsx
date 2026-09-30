@@ -1,28 +1,25 @@
 import { useI18n } from "../i18n";
 import { useEffect, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Moon,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
-import type { Setting } from "../models";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import type { ScanReport, Setting } from "../models";
 import { buildTree, selectionState, toggleSelection } from "../utils/tree";
 import type { SettingNode } from "../utils/tree";
 import { formatValue } from "../utils/format";
+import { ApplicationIcon } from "./ApplicationIcon";
 function Node({
   node,
   selected,
   onChange,
   depth,
   searching,
+  applicationIcons,
 }: {
   node: SettingNode;
   selected: Set<string>;
   onChange: (selected: Set<string>) => void;
   depth: number;
   searching: boolean;
+  applicationIcons?: ScanReport["applicationIcons"];
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(depth < 2);
@@ -73,12 +70,18 @@ function Node({
               : onChange(toggleSelection(node.ids, selected))
           }
         >
-          {depth === 0 &&
-            (node.label === "Lunar Client" ? (
-              <Moon size={17} />
-            ) : (
-              <SlidersHorizontal size={17} />
-            ))}
+          {depth === 0 && (
+            <ApplicationIcon
+              source={node.label === "Lunar Client" ? "lunar" : "minecraft"}
+              data={
+                node.label === "Lunar Client"
+                  ? applicationIcons?.lunar
+                  : applicationIcons?.minecraft
+              }
+              size={20}
+              decorative
+            />
+          )}
           <span>{label}</span>
         </button>
         {branch ? (
@@ -102,6 +105,7 @@ function Node({
               onChange={onChange}
               depth={depth + 1}
               searching={searching}
+              applicationIcons={applicationIcons}
             />
           ))}
         </ul>
@@ -113,10 +117,12 @@ export function TreePicker({
   settings,
   selected,
   onChange,
+  applicationIcons,
 }: {
   settings: Setting[];
   selected: Set<string>;
   onChange: (selected: Set<string>) => void;
+  applicationIcons?: ScanReport["applicationIcons"];
 }) {
   const { t } = useI18n();
   const [search, setSearch] = useState("");
@@ -147,6 +153,7 @@ export function TreePicker({
             onChange={onChange}
             depth={0}
             searching={Boolean(search.trim())}
+            applicationIcons={applicationIcons}
           />
         ))}
       </ul>

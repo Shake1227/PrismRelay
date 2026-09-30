@@ -179,7 +179,7 @@ function WorkspaceApp({
             <strong>
               Prism<span>Relay</span>
             </strong>
-            <small>{t("SETTINGS SHARING")}</small>
+            <small>v{info.version}</small>
           </div>
         </div>
         <div className="workspace-label">{t("WORKSPACE")}</div>

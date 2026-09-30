@@ -178,7 +178,6 @@ export function Import({
         <div className="result-icon">
           <Check size={26} />
         </div>
-        <span className="eyebrow">{t("IMPORT COMPLETE")}</span>
         <h2>
           {isDesktop
             ? t("設定を適用しました。")
@@ -319,6 +318,7 @@ export function Import({
             />
             <TreePicker
               settings={decoded.settings}
+              applicationIcons={scan.applicationIcons}
               selected={selected}
               onChange={(value) => {
                 previewGuard.current.invalidate();
