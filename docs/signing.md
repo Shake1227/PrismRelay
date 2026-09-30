@@ -1,6 +1,6 @@
 # Release signing
 
-Current releases do not use a developer signing certificate or notarization. macOS app bundles may receive the ordinary local ad-hoc signature required by the toolchain; this is not developer identity verification.
+Current releases do not use a developer signing certificate or notarization. macOS bundles use an ad-hoc signature to seal the app, icon, and license resources. This checks bundle integrity and does not verify developer identity. Installer checks mount the DMG and verify the signature before publication.
 
 For a future signed release, configure Tauri's supported signing environment in the protected release job:
 
