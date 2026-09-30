@@ -5,7 +5,7 @@ description = "Local, selective Lunar Client and Minecraft settings sharing"
 edition = "2021"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/SHake1227/prism-relay"
-rust-version = "1.85"
+rust-version = "1.90"
 
 [lib]
 name = "prism_relay"
@@ -30,6 +30,7 @@ tempfile = "3"
 sysinfo = "0.37"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 fs2 = "0.4"
+dunce = "1"
 
 [profile.release]
 strip = true

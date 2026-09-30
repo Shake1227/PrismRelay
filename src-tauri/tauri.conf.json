@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{"title": "Prism Relay", "width": 1180, "height": 800, "minWidth": 900, "minHeight": 640, "decorations": true}],
-    "security": {"csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"}
+    "security": {"csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"}
   },
   "bundle": {
     "active": true,
