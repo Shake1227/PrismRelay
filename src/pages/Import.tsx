@@ -1,9 +1,11 @@
+import { useI18n } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
   Check,
   FileUp,
+  QrCode,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -17,12 +19,12 @@ import { backend, isDesktop } from "../services/backend";
 import { demoScan, encodeDemo } from "../services/demo";
 import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
+import { QrReader } from "../components/QrReader";
 import { Modal } from "../components/Modal";
 import { formatDate, formatValue } from "../utils/format";
 import { minecraftProfiles, reconcileProfiles } from "../utils/profiles";
 import { createRequestGuard } from "../utils/requestGuard";
 import type { WorkspaceProps } from "./types";
-
 export function Import({
   scan,
   request,
@@ -30,6 +32,7 @@ export function Import({
   onNotice,
   onRefresh,
 }: WorkspaceProps) {
+  const { t, locale } = useI18n();
   const [code, setCode] = useState("");
   const [decoded, setDecoded] = useState<DecodedShare | null>(null);
   const [selected, setSelected] = useState(new Set<string>());
@@ -41,6 +44,7 @@ export function Import({
   const [changedOnly, setChangedOnly] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [readingQr, setReadingQr] = useState(false);
   const [done, setDone] = useState(false);
   const [appliedCount, setAppliedCount] = useState(0);
   const previewGuard = useRef(createRequestGuard());
@@ -118,8 +122,8 @@ export function Import({
       setConfirm(false);
       onNotice(
         isDesktop
-          ? "選択した設定を適用しました。元の設定はバックアップ済みです。"
-          : "サンプルの適用を確認しました。実際の設定は変更されません。",
+          ? t("選択した設定を適用しました。元の設定はバックアップ済みです。")
+          : t("サンプルの適用を確認しました。実際の設定は変更されません。"),
       );
       await onRefresh();
     } catch (error) {
@@ -154,7 +158,12 @@ export function Import({
             ].includes(setting.id),
           )
           .map((setting) =>
-            setting.id === "demo-mc-0" ? { ...setting, value: 80 } : setting,
+            setting.id === "demo-mc-0"
+              ? {
+                  ...setting,
+                  value: 80,
+                }
+              : setting,
           ),
         {
           platform: "Sample",
@@ -169,26 +178,31 @@ export function Import({
         <div className="result-icon">
           <Check size={26} />
         </div>
-        <span className="eyebrow">SETUP RESTORED</span>
+        <span className="eyebrow">{t("IMPORT COMPLETE")}</span>
         <h2>
           {isDesktop
-            ? "いつもの環境が、ここに。"
-            : "適用の流れを確認できました。"}
+            ? t("設定を適用しました。")
+            : t("適用の流れを確認できました。")}
         </h2>
         <p>
           {isDesktop
-            ? `${appliedCount} 項目を適用しました。ゲームを再起動すると設定が反映されます。`
-            : "サンプルモードではファイルは変更されません。"}
+            ? t(
+                "{0} 項目を適用しました。ゲームを再起動すると設定が反映されます。",
+                {
+                  "0": appliedCount,
+                },
+              )
+            : t("サンプルモードではファイルは変更されません。")}
         </p>
         <div className="help-card">
           <ShieldCheck size={20} />
           <div>
             <strong>
               {isDesktop
-                ? "元の設定も保存済みです"
-                : "実際の操作はデスクトップアプリで"}
+                ? t("元の設定も保存済みです")
+                : t("実際の操作はデスクトップアプリで")}
             </strong>
-            <p>バックアップ画面から、以前の設定に戻せます。</p>
+            <p>{t("バックアップ画面から、以前の設定に戻せます。")}</p>
           </div>
         </div>
         <button
@@ -198,7 +212,7 @@ export function Import({
             setDone(false);
           }}
         >
-          別のコードを読み込む
+          {t("別のコードを読み込む")}
           <ArrowRight size={16} />
         </button>
       </section>
@@ -208,26 +222,35 @@ export function Import({
       <section className="glass-panel paste-panel">
         <div className="panel-heading">
           <div>
-            <h3>共有コードを貼り付け</h3>
-            <p>内容を確認してから、必要な項目だけ適用できます。</p>
+            <h3>{t("共有コードを貼り付け")}</h3>
+            <p>{t("内容を確認してから、必要な項目だけ適用できます。")}</p>
           </div>
-          <button
-            className="button secondary compact"
-            onClick={() => void loadFile()}
-          >
-            <FileUp size={15} />
-            ファイルを開く
-          </button>
+          <div className="import-input-actions">
+            <button
+              className="button secondary compact"
+              onClick={() => setReadingQr(true)}
+            >
+              <QrCode size={15} />
+              {t("QRコードを読み取る")}
+            </button>
+            <button
+              className="button secondary compact"
+              onClick={() => void loadFile()}
+            >
+              <FileUp size={15} />
+              {t("ファイルを開く")}
+            </button>
+          </div>
         </div>
         <textarea
           className="paste-code"
           spellCheck={false}
           placeholder={
             isDesktop
-              ? "PRS1: で始まる共有コードをここに…"
-              : "サンプルコードをここに…"
+              ? t("PRS1: または PRS2: で始まる共有コードをここに…")
+              : t("サンプルコードをここに…")
           }
-          aria-label="読み込む共有コード"
+          aria-label={t("読み込む共有コード")}
           value={code}
           onChange={(event) => setCode(event.target.value)}
         />
@@ -247,15 +270,15 @@ export function Import({
         <div className="paste-footer">
           <span>
             <ShieldCheck size={13} />
-            貼り付けだけでは設定は変わりません
+            {t("貼り付けだけでは設定は変わりません")}
           </span>
           {busy && !decoded ? (
-            <span>解析中…</span>
+            <span>{t("解析中…")}</span>
           ) : (
             !isDesktop && (
               <button className="text-button" onClick={sample}>
                 <Sparkles size={13} />
-                サンプルを試す
+                {t("サンプルを試す")}
               </button>
             )
           )}
@@ -266,18 +289,22 @@ export function Import({
           <div className="decoded-meta">
             <span className="status-pill">
               <Check size={12} />
-              コードを確認
+              {t("コードを確認")}
             </span>
-            <span>{decoded.settings.length} 項目</span>
+            <span>
+              {decoded.settings.length} {t("項目")}
+            </span>
             <span>{decoded.metadata.platform}</span>
-            <span>Minecraft {decoded.metadata.minecraftVersion || "不明"}</span>
-            <span>{formatDate(decoded.createdAt)}</span>
+            <span>
+              Minecraft {decoded.metadata.minecraftVersion || t("不明")}
+            </span>
+            <span>{formatDate(decoded.createdAt, locale)}</span>
           </div>
           <section className="glass-panel selection-panel">
             <div className="panel-heading">
               <div>
-                <h3>適用する設定を選択</h3>
-                <p>受け取った設定から、さらに絞り込めます。</p>
+                <h3>{t("適用する設定を選択")}</h3>
+                <p>{t("受け取った設定から、さらに絞り込めます。")}</p>
               </div>
             </div>
             <ProfileSelect
@@ -302,15 +329,17 @@ export function Import({
             <div className="panel-action-row">
               <span>
                 {missingTarget
-                  ? "適用先のプロフィールを選択してください"
-                  : `${selected.size} 項目の適用先を確認します`}
+                  ? t("適用先のプロフィールを選択してください")
+                  : t("{0} 項目の適用先を確認します", {
+                      "0": selected.size,
+                    })}
               </span>
               <button
                 className="button primary"
                 disabled={!selected.size || missingTarget || busy}
                 onClick={() => void makePreview()}
               >
-                差分をプレビュー
+                {t("差分をプレビュー")}
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -319,10 +348,10 @@ export function Import({
             <section className="glass-panel diff-panel">
               <div className="panel-heading">
                 <div>
-                  <h3>変更内容を確認</h3>
+                  <h3>{t("変更内容を確認")}</h3>
                   <p>
                     {preview.changes.filter((change) => change.changed).length}{" "}
-                    項目が変更されます。
+                    {t("項目が変更されます。")}
                   </p>
                 </div>
                 <label className="toggle-label">
@@ -331,19 +360,19 @@ export function Import({
                     checked={changedOnly}
                     onChange={(event) => setChangedOnly(event.target.checked)}
                   />
-                  変更のみ
+                  {t("変更のみ")}
                 </label>
               </div>
               {preview.warnings.map((warning, index) => (
                 <div className="inline-warning" key={index}>
-                  {warning}
+                  {t(warning)}
                 </div>
               ))}
               <div className="diff-table">
                 <div className="diff-table-header">
-                  <span>設定</span>
-                  <span>現在</span>
-                  <span>読み込む設定</span>
+                  <span>{t("設定")}</span>
+                  <span>{t("現在")}</span>
+                  <span>{t("読み込む設定")}</span>
                 </div>
                 {preview.changes
                   .filter((change) => !changedOnly || change.changed)
@@ -353,10 +382,15 @@ export function Import({
                       key={change.id}
                     >
                       <div>
-                        <strong>{change.label}</strong>
+                        <strong>
+                          {change.label
+                            .split(" · ")
+                            .map((part) => t(part))
+                            .join(" · ")}
+                        </strong>
                         <small>
                           {change.source === "lunar" ? "Lunar" : "Minecraft"} ·{" "}
-                          {change.category}
+                          {t(change.category)}
                         </small>
                       </div>
                       <code title={formatValue(change.current)}>
@@ -372,14 +406,14 @@ export function Import({
                 ).length === 0 && (
                   <div className="empty-state small">
                     <Check size={23} />
-                    <p>現在の設定と一致しています</p>
+                    <p>{t("現在の設定と一致しています")}</p>
                   </div>
                 )}
               </div>
               <div className="panel-action-row">
                 <span>
                   <ShieldCheck size={15} />
-                  適用前に自動でバックアップ
+                  {t("適用前に自動でバックアップ")}
                 </span>
                 <button
                   className="button primary"
@@ -389,19 +423,28 @@ export function Import({
                   onClick={() => setConfirm(true)}
                 >
                   <ArrowDownToLine size={16} />
-                  {isDesktop ? "選択した設定を適用" : "サンプルの適用を確認"}
+                  {isDesktop
+                    ? t("選択した設定を適用")
+                    : t("サンプルの適用を確認")}
                 </button>
               </div>
             </section>
           )}
         </>
       )}
+      {readingQr && (
+        <QrReader
+          onCode={setCode}
+          onError={onError}
+          onClose={() => setReadingQr(false)}
+        />
+      )}
       {confirm && (
         <Modal
           title={
             scan.runningProcesses.length
-              ? "ゲームが起動しています"
-              : "設定を適用しますか？"
+              ? t("ゲームが起動しています")
+              : t("設定を適用しますか？")
           }
           onClose={() => setConfirm(false)}
         >
@@ -410,12 +453,24 @@ export function Import({
           </div>
           <p className="modal-copy">
             {scan.runningProcesses.length
-              ? `${scan.runningProcesses.join("、")} が起動しています。ゲーム側で設定が上書きされる場合があります。終了してからの適用をおすすめします。`
-              : `${preview?.changes.filter((change) => change.changed).length || 0} 項目の変更を、選択したプロフィールに適用します。変更前の設定は自動でバックアップされます。`}
+              ? t(
+                  "{0} が起動しています。ゲーム側で設定が上書きされる場合があります。終了してからの適用をおすすめします。",
+                  {
+                    "0": scan.runningProcesses.join("、"),
+                  },
+                )
+              : t(
+                  "{0} 項目の変更を、選択したプロフィールに適用します。変更前の設定は自動でバックアップされます。",
+                  {
+                    "0":
+                      preview?.changes.filter((change) => change.changed)
+                        .length || 0,
+                  },
+                )}
           </p>
           {!isDesktop && (
             <p className="inline-warning">
-              サンプルの確認です。実際の設定ファイルは変更しません。
+              {t("サンプルの確認です。実際の設定ファイルは変更しません。")}
             </p>
           )}
           <div className="modal-actions">
@@ -423,7 +478,7 @@ export function Import({
               className="button secondary"
               onClick={() => setConfirm(false)}
             >
-              キャンセル
+              {t("キャンセル")}
             </button>
             <button
               className="button primary"
@@ -431,10 +486,10 @@ export function Import({
               onClick={() => void apply(scan.runningProcesses.length > 0)}
             >
               {busy
-                ? "適用中…"
+                ? t("適用中…")
                 : scan.runningProcesses.length
-                  ? "起動中でも続行"
-                  : "バックアップして適用"}
+                  ? t("起動中でも続行")
+                  : t("バックアップして適用")}
             </button>
           </div>
         </Modal>

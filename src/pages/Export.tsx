@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -26,12 +27,10 @@ import {
 } from "../utils/profiles";
 import { createRequestGuard } from "../utils/requestGuard";
 import type { WorkspaceProps } from "./types";
-
 interface SavedPreset {
   name: string;
   pointers: string[];
 }
-
 function loadPresets(): SavedPreset[] {
   try {
     const stored: unknown = JSON.parse(
@@ -53,13 +52,15 @@ function loadPresets(): SavedPreset[] {
     return [];
   }
 }
-
 export function Export({
   scan,
   onError,
   onNotice,
   onCreated,
-}: WorkspaceProps & { onCreated: () => void }) {
+}: WorkspaceProps & {
+  onCreated: () => void;
+}) {
+  const { t } = useI18n();
   const [profiles, setProfiles] = useState<TargetProfiles>({
     minecraftProfile: minecraftProfiles(scan)[0],
     lunarProfile: scan.lunarProfiles[0],
@@ -150,7 +151,7 @@ export function Export({
     try {
       await navigator.clipboard.writeText(encoded.code);
       setCopied(true);
-      onNotice("共有コードをコピーしました");
+      onNotice(t("共有コードをコピーしました"));
       window.setTimeout(() => setCopied(false), 2500);
     } catch (error) {
       onError(error);
@@ -160,14 +161,16 @@ export function Export({
     if (!encoded) return;
     if (encoded.code.length > 2200) {
       onNotice(
-        "コードが長いため QR にできません。コピーまたはファイル保存をご利用ください。",
+        t(
+          "コードが長いため QR にできません。コピーまたはファイル保存をご利用ください。",
+        ),
       );
       return;
     }
     try {
       setQr(
         await QRCode.toDataURL(encoded.code, {
-          width: 320,
+          width: 768,
           margin: 2,
           errorCorrectionLevel: "M",
         }),
@@ -192,11 +195,11 @@ export function Export({
     setPreset(`saved:${presetName.trim()}`);
     setSavingPreset(false);
     setPresetName("");
-    onNotice("プリセットを保存しました");
+    onNotice(t("プリセットを保存しました"));
   };
   const groups = selectedSettings.reduce<Record<string, number>>(
     (result, setting: Setting) => {
-      const key = `${setting.source === "lunar" ? "Lunar" : "Minecraft"} · ${setting.category}`;
+      const key = `${setting.source === "lunar" ? "Lunar" : "Minecraft"} · ${t(setting.category)}`;
       result[key] = (result[key] || 0) + 1;
       return result;
     },
@@ -208,40 +211,58 @@ export function Export({
         <div className="result-icon">
           <Check size={26} />
         </div>
-        <span className="eyebrow">READY TO RELAY</span>
-        <h2>セットアップの準備ができました。</h2>
+        <span className="eyebrow">{t("SHARE CODE CREATED")}</span>
+        <h2>{t("共有コードを作成しました。")}</h2>
         <p>
-          {encoded.settingCount} 項目を、ひとつのコードに。
+          {encoded.settingCount} {t("項目を、ひとつのコードに。")}{" "}
           {isDesktop
-            ? "次のデバイスで読み込めます。"
-            : "これは体験用のサンプルコードです。"}
+            ? t("別のデバイスで読み込めます。")
+            : t("これは体験用のサンプルコードです。")}
         </p>
         <div className="code-meta">
+          <span>
+            {encoded.code.length} {t("文字")}
+          </span>
           <span>{formatBytes(encoded.compressedBytes)}</span>
-          <span>{isDesktop ? "チェックサム付き" : "PRDEMO1 · サンプル"}</span>
-          <span>v1 format</span>
+          <span>
+            {isDesktop ? t("チェックサム付き") : t("PRDEMO1 · サンプル")}
+          </span>
+          <span>{t("v1 format")}</span>
         </div>
+        {encoded.code.length <= 2000 && (
+          <p className="share-file-hint">
+            {t("Discord のメッセージにそのまま貼り付けて共有できます。")}
+          </p>
+        )}
+        {encoded.code.length > 2000 && (
+          <p className="share-file-hint">
+            {t(
+              "Discord のメッセージ上限（2000文字）を超えています。.prism ファイルとして保存し、添付して共有してください。",
+            )}
+          </p>
+        )}
         <textarea
           className="share-code"
           value={encoded.code}
           readOnly
-          aria-label="作成した共有コード"
+          aria-label={t("作成した共有コード")}
         />
         <div className="result-actions">
           <button className="button primary" onClick={() => void copy()}>
-            {copied ? <Check size={17} /> : <Copy size={17} />}コードをコピー
+            {copied ? <Check size={17} /> : <Copy size={17} />}
+            {t("コードをコピー")}
           </button>
           <button
             className="button secondary"
             onClick={() =>
               void backend
                 .saveCode(encoded.code)
-                .then((saved) => saved && onNotice("ファイルを保存しました"))
+                .then((saved) => saved && onNotice(t("ファイルを保存しました")))
                 .catch(onError)
             }
           >
             <FileDown size={17} />
-            保存
+            {t("保存")}
           </button>
           <button className="button secondary" onClick={() => void makeQr()}>
             <QrCode size={17} />
@@ -252,13 +273,16 @@ export function Export({
             onClick={() =>
               void (navigator.share
                 ? navigator
-                    .share({ title: "Prism Relay", text: encoded.code })
+                    .share({
+                      title: "Prism Relay",
+                      text: encoded.code,
+                    })
                     .catch(onError)
                 : copy())
             }
           >
             <Share2 size={17} />
-            共有
+            {t("共有")}
           </button>
         </div>
         <button
@@ -266,18 +290,36 @@ export function Export({
           onClick={() => setCreated(false)}
         >
           <ArrowLeft size={14} />
-          選択に戻る
+          {t("選択に戻る")}
         </button>
         {qr && (
-          <Modal title="共有コードの QR" onClose={() => setQr(null)}>
+          <Modal title={t("共有コードの QR")} onClose={() => setQr(null)}>
             <img
               className="qr-image"
               src={qr}
-              alt="設定共有コードの QR コード"
+              alt={t("設定共有コードの QR コード")}
             />
             <p className="modal-copy">
-              受け取り側でコードを読み取り、適用前に内容をご確認ください。
+              {t(
+                "受け取り側でコードを読み取り、適用前に内容をご確認ください。",
+              )}
             </p>
+            <div className="modal-actions">
+              <button
+                className="button primary"
+                onClick={() =>
+                  void backend
+                    .saveQrImage(qr)
+                    .then(
+                      (saved) => saved && onNotice(t("QR画像を保存しました。")),
+                    )
+                    .catch(onError)
+                }
+              >
+                <FileDown size={16} />
+                {t("QR画像を保存")}
+              </button>
+            </div>
           </Modal>
         )}
       </section>
@@ -286,23 +328,26 @@ export function Export({
     <div className="export-page">
       <div className="workflow-steps">
         <span className="active">
-          <b>1</b>設定を選ぶ
+          <b>1</b>
+          {t("設定を選ぶ")}
         </span>
         <i />
         <span className={encoded ? "active" : ""}>
-          <b>2</b>プレビュー
+          <b>2</b>
+          {t("プレビュー")}
         </span>
         <i />
         <span>
-          <b>3</b>コードを作成
+          <b>3</b>
+          {t("コードを作成")}
         </span>
       </div>
       <div className="export-layout">
         <section className="glass-panel selection-panel">
           <div className="panel-heading">
             <div>
-              <h3>何を持ち運びますか？</h3>
-              <p>必要な設定だけを選択してください。</p>
+              <h3>{t("共有する設定")}</h3>
+              <p>{t("必要な設定だけを選択してください。")}</p>
             </div>
             <Sparkles size={19} />
           </div>
@@ -316,18 +361,18 @@ export function Export({
           />
           <div className="preset-bar">
             <label>
-              <span>プリセット</span>
+              <span>{t("プリセット")}</span>
               <select
-                aria-label="プリセット"
+                aria-label={t("プリセット")}
                 value={preset}
                 onChange={(event) => applyPreset(event.target.value)}
               >
                 {presets.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.label}
+                    {t(item.label)}
                   </option>
                 ))}
-                <option value="custom">カスタム</option>
+                <option value="custom">{t("カスタム")}</option>
                 {savedPresets.map((item) => (
                   <option key={item.name} value={`saved:${item.name}`}>
                     {item.name}
@@ -338,7 +383,7 @@ export function Export({
             <button
               className="icon-button"
               onClick={() => setSavingPreset(true)}
-              aria-label="プリセットを保存"
+              aria-label={t("プリセットを保存")}
               disabled={!selectedSettings.length}
             >
               <Plus size={17} />
@@ -352,10 +397,10 @@ export function Export({
         </section>
         <aside className="export-aside">
           <section className="glass-panel summary-panel">
-            <span className="eyebrow">EXPORT SUMMARY</span>
+            <span className="eyebrow">{t("EXPORT SUMMARY")}</span>
             <div className="selection-total">
               <strong>{selectedSettings.length}</strong>
-              <span>選択した設定</span>
+              <span>{t("選択した設定")}</span>
             </div>
             <div className="summary-groups">
               {Object.entries(groups).map(([label, count]) => (
@@ -367,12 +412,16 @@ export function Export({
             </div>
             {encoded && (
               <div className="size-estimate">
-                <span>{isDesktop ? "圧縮後のサイズ" : "サンプルサイズ"}</span>
+                <span>
+                  {isDesktop ? t("圧縮後のサイズ") : t("サンプルサイズ")}
+                </span>
                 <strong>{formatBytes(encoded.compressedBytes)}</strong>
                 <p>
                   {isDesktop
-                    ? `元のデータ ${formatBytes(encoded.uncompressedBytes)}`
-                    : "本番コードは圧縮・検証付き"}
+                    ? t("元のデータ {0}", {
+                        "0": formatBytes(encoded.uncompressedBytes),
+                      })
+                    : t("本番コードは圧縮・検証付き")}
                 </p>
               </div>
             )}
@@ -384,32 +433,37 @@ export function Export({
               }
             >
               {busy
-                ? "確認中…"
+                ? t("確認中…")
                 : encoded
-                  ? "共有コードを作成"
-                  : "プレビューを確認"}
+                  ? t("共有コードを作成")
+                  : t("プレビューを確認")}
               <ArrowRight size={16} />
             </button>
           </section>
           <div className="help-card">
             <ShieldCheck size={19} />
             <div>
-              <strong>設定だけを、安全に。</strong>
-              <p>アカウント、認証情報、ログは共有コードに含まれません。</p>
+              <strong>{t("共有する項目を限定")}</strong>
+              <p>
+                {t("アカウント、認証情報、ログは共有コードに含まれません。")}
+              </p>
             </div>
           </div>
         </aside>
       </div>
       {savingPreset && (
-        <Modal title="プリセットを保存" onClose={() => setSavingPreset(false)}>
+        <Modal
+          title={t("プリセットを保存")}
+          onClose={() => setSavingPreset(false)}
+        >
           <p className="modal-copy">
-            現在選択している {selectedSettings.length}{" "}
-            項目を、次回もすぐに選べます。
+            {t("現在選択している")} {selectedSettings.length}{" "}
+            {t("項目を、次回もすぐに選べます。")}
           </p>
           <input
             className="text-input"
             autoFocus
-            placeholder="プリセット名"
+            placeholder={t("プリセット名")}
             maxLength={40}
             value={presetName}
             onChange={(event) => setPresetName(event.target.value)}
@@ -420,14 +474,14 @@ export function Export({
               className="button secondary"
               onClick={() => setSavingPreset(false)}
             >
-              キャンセル
+              {t("キャンセル")}
             </button>
             <button
               className="button primary"
               disabled={!presetName.trim()}
               onClick={savePreset}
             >
-              保存
+              {t("保存")}
             </button>
           </div>
         </Modal>

@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -14,7 +15,6 @@ import { backend, isDesktop } from "../services/backend";
 import { Modal } from "../components/Modal";
 import { formatBytes, formatDate } from "../utils/format";
 import type { WorkspaceProps } from "./types";
-
 export function Backups({
   backups,
   scan,
@@ -23,6 +23,7 @@ export function Backups({
   onNotice,
   onRefresh,
 }: WorkspaceProps) {
+  const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [action, setAction] = useState<{
     kind: "restore" | "delete";
@@ -36,8 +37,8 @@ export function Backups({
       await onRefresh();
       onNotice(
         isDesktop
-          ? "バックアップを保存しました"
-          : "サンプルのバックアップを確認しました",
+          ? t("バックアップを保存しました")
+          : t("サンプルのバックアップを確認しました"),
       );
     } catch (error) {
       onError(error);
@@ -58,9 +59,9 @@ export function Backups({
       onNotice(
         isDesktop
           ? action.kind === "restore"
-            ? "設定を復元しました"
-            : "バックアップを削除しました"
-          : "サンプルの操作を確認しました。ファイルは変更されません。",
+            ? t("設定を復元しました")
+            : t("バックアップを削除しました")
+          : t("サンプルの操作を確認しました。ファイルは変更されません。"),
       );
       setAction(null);
       await onRefresh();
@@ -74,8 +75,8 @@ export function Backups({
     <div className="backups-page">
       <div className="backup-intro">
         <div>
-          <h2>いつでも、元に戻せる。</h2>
-          <p>設定を変える前の安心を、ここに。</p>
+          <h2>{t("設定のバックアップ")}</h2>
+          <p>{t("保存した設定を確認・復元できます。")}</p>
         </div>
         <div className="backup-toolbar">
           <button
@@ -86,13 +87,13 @@ export function Backups({
                 .then(
                   () =>
                     !isDesktop &&
-                    onNotice("デスクトップアプリで保存先を開けます"),
+                    onNotice(t("デスクトップアプリで保存先を開けます")),
                 )
                 .catch(onError)
             }
           >
             <FolderOpen size={16} />
-            保存先を開く
+            {t("保存先を開く")}
           </button>
           <button
             className="button primary"
@@ -100,20 +101,22 @@ export function Backups({
             disabled={busy || !scan.files.length}
           >
             <Plus size={17} />
-            バックアップ
+            {t("バックアップ")}
           </button>
         </div>
       </div>
       <div className="backup-summary">
         <ShieldCheck size={20} />
-        <span>インポート前のバックアップは自動で作成されます。</span>
-        <b>{backups.length} 保存済み</b>
+        <span>{t("インポート前のバックアップは自動で作成されます。")}</span>
+        <b>
+          {backups.length} {t("保存済み")}
+        </b>
       </div>
       <section className="glass-panel backup-list">
         <div className="backup-list-label">
-          <span>バックアップ</span>
-          <span>ファイル / サイズ</span>
-          <span>操作</span>
+          <span>{t("バックアップ")}</span>
+          <span>{t("ファイル / サイズ")}</span>
+          <span>{t("操作")}</span>
         </div>
         {backups.map((backup) => (
           <div className="backup-entry" key={backup.id}>
@@ -129,14 +132,14 @@ export function Backups({
                   <HardDrive size={20} />
                 </div>
                 <div>
-                  <strong>{formatDate(backup.createdAt)}</strong>
+                  <strong>{formatDate(backup.createdAt, locale)}</strong>
                   <p>
                     {backup.reason === "manual"
-                      ? "手動バックアップ"
+                      ? t("手動バックアップ")
                       : backup.reason === "import"
-                        ? "インポート前"
+                        ? t("インポート前")
                         : backup.reason === "restore"
-                          ? "復元前"
+                          ? t("復元前")
                           : backup.reason}{" "}
                     · {backup.platform}
                   </p>
@@ -148,7 +151,9 @@ export function Backups({
                 )}
               </button>
               <div className="backup-size">
-                <strong>{backup.files.length} ファイル</strong>
+                <strong>
+                  {backup.files.length} {t("ファイル")}
+                </strong>
                 <p>
                   {formatBytes(
                     backup.files.reduce((total, file) => total + file.size, 0),
@@ -158,15 +163,27 @@ export function Backups({
               <div className="backup-actions">
                 <button
                   className="button secondary compact"
-                  onClick={() => setAction({ kind: "restore", backup })}
+                  onClick={() =>
+                    setAction({
+                      kind: "restore",
+                      backup,
+                    })
+                  }
                 >
                   <RotateCcw size={14} />
-                  復元
+                  {t("復元")}
                 </button>
                 <button
                   className="icon-button danger"
-                  aria-label={`${formatDate(backup.createdAt)} のバックアップを削除`}
-                  onClick={() => setAction({ kind: "delete", backup })}
+                  aria-label={t("{0} のバックアップを削除", {
+                    "0": formatDate(backup.createdAt, locale),
+                  })}
+                  onClick={() =>
+                    setAction({
+                      kind: "delete",
+                      backup,
+                    })
+                  }
                 >
                   <Trash2 size={15} />
                 </button>
@@ -196,8 +213,8 @@ export function Backups({
         {!backups.length && (
           <div className="empty-state">
             <HardDrive size={32} />
-            <h3>バックアップはまだありません</h3>
-            <p>現在の設定を保存すると、いつでも元に戻せます。</p>
+            <h3>{t("バックアップはまだありません")}</h3>
+            <p>{t("現在の設定を保存すると、いつでも元に戻せます。")}</p>
           </div>
         )}
       </section>
@@ -205,25 +222,35 @@ export function Backups({
         <Modal
           title={
             action.kind === "delete"
-              ? "バックアップを削除しますか？"
-              : "このバックアップから復元しますか？"
+              ? t("バックアップを削除しますか？")
+              : t("このバックアップから復元しますか？")
           }
           onClose={() => setAction(null)}
         >
           <p className="modal-copy">
             {action.kind === "delete"
-              ? `${formatDate(action.backup.createdAt)} のバックアップを削除します。この操作は取り消せません。`
-              : `${formatDate(action.backup.createdAt)} の設定に戻します。現在の設定も、復元前にバックアップされます。`}
+              ? t(
+                  "{0} のバックアップを削除します。この操作は取り消せません。",
+                  {
+                    "0": formatDate(action.backup.createdAt, locale),
+                  },
+                )
+              : t(
+                  "{0} の設定に戻します。現在の設定も、復元前にバックアップされます。",
+                  {
+                    "0": formatDate(action.backup.createdAt, locale),
+                  },
+                )}
           </p>
           {action.kind === "restore" && scan.runningProcesses.length > 0 && (
             <p className="inline-warning">
               {scan.runningProcesses.join("、")}{" "}
-              が起動中です。終了してからの復元をおすすめします。
+              {t("が起動中です。終了してからの復元をおすすめします。")}
             </p>
           )}
           {!isDesktop && (
             <p className="inline-warning">
-              サンプルの確認です。実際のファイルは変更しません。
+              {t("サンプルの確認です。実際のファイルは変更しません。")}
             </p>
           )}
           <div className="modal-actions">
@@ -231,7 +258,7 @@ export function Backups({
               className="button secondary"
               onClick={() => setAction(null)}
             >
-              キャンセル
+              {t("キャンセル")}
             </button>
             <button
               className={`button ${action.kind === "delete" ? "destructive" : "primary"}`}
@@ -239,12 +266,12 @@ export function Backups({
               onClick={() => void perform()}
             >
               {busy
-                ? "処理中…"
+                ? t("処理中…")
                 : action.kind === "delete"
-                  ? "削除"
+                  ? t("削除")
                   : scan.runningProcesses.length
-                    ? "起動中でも復元"
-                    : "バックアップして復元"}
+                    ? t("起動中でも復元")
+                    : t("バックアップして復元")}
             </button>
           </div>
         </Modal>

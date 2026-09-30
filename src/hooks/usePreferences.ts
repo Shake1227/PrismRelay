@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Preferences } from "../models";
 
 const defaults: Preferences = {
+  language: "ja",
   theme: "dark",
   reduceMotion: false,
   request: {},
@@ -13,6 +14,11 @@ function loadPreferences(): Preferences {
       localStorage.getItem("prism-preferences") || "{}",
     ) as Partial<Preferences>;
     return {
+      language: ["en", "ja", "ko", "zh", "fi", "es", "de"].includes(
+        stored.language || "",
+      )
+        ? stored.language!
+        : defaults.language,
       theme: ["dark", "light", "system"].includes(stored.theme || "")
         ? stored.theme!
         : defaults.theme,

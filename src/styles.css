@@ -675,6 +675,33 @@ svg {
 .source-info {
   flex: 1;
 }
+.application-icon-image {
+  height: 34px;
+  width: 34px;
+  object-fit: contain;
+}
+.language-setting {
+  border-top: 0;
+  padding-top: 0;
+}
+.language-setting h3 {
+  font-size: 12px;
+  font-weight: 550;
+}
+.language-setting > select {
+  width: 180px;
+  flex-shrink: 0;
+}
+.share-file-hint {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.8;
+  background: var(--accent-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
 .source-info h3 {
   font-size: 13px;
   letter-spacing: 0.1px;
@@ -2245,4 +2272,53 @@ input.switch:checked::before {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+.import-input-actions,
+.qr-reader-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.import-input-actions {
+  margin-left: auto;
+}
+.paste-panel > .panel-heading {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.qr-reader-actions {
+  margin: 18px 0;
+}
+.qr-camera {
+  display: none;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: #0d0e16;
+  border-radius: 10px;
+  margin: 16px 0;
+}
+.qr-camera.active {
+  display: block;
+}
+.qr-reader-error {
+  background: var(--accent-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 11px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.8;
+}
+.qr-reader-actions + input + video + p,
+.modal > p {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.85;
+  margin-top: 18px;
+}
+.about-links {
+  flex-wrap: wrap;
 }

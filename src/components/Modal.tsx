@@ -1,7 +1,7 @@
+import { useI18n } from "../i18n";
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
-
 export function Modal({
   title,
   children,
@@ -11,6 +11,7 @@ export function Modal({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -41,7 +42,11 @@ export function Modal({
     >
       <div className="modal-heading">
         <h2 id={titleId}>{title}</h2>
-        <button className="icon-button" onClick={onClose} aria-label="閉じる">
+        <button
+          className="icon-button"
+          onClick={onClose}
+          aria-label={t("閉じる")}
+        >
           <X size={20} />
         </button>
       </div>

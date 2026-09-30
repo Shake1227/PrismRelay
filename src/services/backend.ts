@@ -99,7 +99,7 @@ export const backend = {
           updateAvailable: false,
           releaseUrl: "https://github.com/SHake1227/prism-relay/releases",
         }),
-  openProjectPage: (page: "repository" | "releases" | "license") => {
+  openProjectPage: (page: "repository" | "releases" | "license" | "x") => {
     if (isDesktop) return invoke<void>("open_project_page", { page });
     const suffix =
       page === "repository"
@@ -108,21 +108,27 @@ export const backend = {
           ? "/releases"
           : "/blob/main/LICENSE";
     window.open(
-      `https://github.com/SHake1227/prism-relay${suffix}`,
+      page === "x"
+        ? "https://x.com/shake_1227"
+        : `https://github.com/SHake1227/prism-relay${suffix}`,
       "_blank",
       "noopener,noreferrer",
     );
     return Promise.resolve();
   },
-  async chooseDirectory(source: Source): Promise<string | null> {
+  async chooseDirectory(
+    source: Source,
+    title?: string,
+  ): Promise<string | null> {
     if (!isDesktop) return null;
     const path = await open({
       directory: true,
       multiple: false,
       title:
-        source === "minecraft"
+        title ||
+        (source === "minecraft"
           ? "Minecraft 設定フォルダ"
-          : "Lunar Client 設定フォルダ",
+          : "Lunar Client 設定フォルダ"),
     });
     return typeof path === "string" ? path : null;
   },
@@ -142,6 +148,22 @@ export const backend = {
     });
     if (!path) return false;
     await invoke<void>("save_share_file", { path, code });
+    return true;
+  },
+  async saveQrImage(dataUrl: string): Promise<boolean> {
+    if (!isDesktop) {
+      const anchor = document.createElement("a");
+      anchor.href = dataUrl;
+      anchor.download = "prism-relay-qr.png";
+      anchor.click();
+      return true;
+    }
+    const path = await save({
+      defaultPath: "prism-relay-qr.png",
+      filters: [{ name: "PNG", extensions: ["png"] }],
+    });
+    if (!path) return false;
+    await invoke<void>("save_qr_image", { path, dataUrl });
     return true;
   },
   async loadCode(): Promise<string | null> {

@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import { useState } from "react";
 import {
   ArrowUpRight,
@@ -11,7 +12,6 @@ import type { AppInfo, UpdateInfo } from "../models";
 import { backend, isDesktop } from "../services/backend";
 import { PrismMark } from "../components/PrismMark";
 import { Modal } from "../components/Modal";
-
 export function About({
   info,
   onError,
@@ -19,6 +19,7 @@ export function About({
   info: AppInfo;
   onError: (error: unknown) => void;
 }) {
+  const { t } = useI18n();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [licenses, setLicenses] = useState<string | null>(null);
@@ -49,27 +50,36 @@ export function About({
     <div className="about-page">
       <section className="glass-panel about-brand">
         <PrismMark className="about-prism" />
-        <span className="eyebrow">YOUR SETTINGS. ANYWHERE.</span>
+        <span className="eyebrow">{t("MINECRAFT SETTINGS SHARING")}</span>
         <h2>
           Prism Relay<span>v{info.version}</span>
         </h2>
         <p>
-          Minecraft と Lunar Client のセットアップを、
+          {t("Minecraft と Lunar Client のセットアップを、")}
           <br />
-          必要な分だけ、あなたの次のデバイスへ。
+          {t("選択した項目だけ共有する設定ツールです。")}
         </p>
         <div className="about-badges">
+          <span>{t("作者 · Shake_1227")}</span>
           <span>
             <ShieldCheck size={13} />
-            Local first
+            {t("Local first")}
           </span>
           <span>
             <Scale size={13} />
             GPL v3
           </span>
-          <span>Open source</span>
+          <span>{t("Open source")}</span>
         </div>
         <div className="about-links">
+          <button
+            className="button secondary"
+            onClick={() => void backend.openProjectPage("x").catch(onError)}
+            aria-label={t("作者の X を開く")}
+          >
+            X
+            <ArrowUpRight size={14} />
+          </button>
           <button
             className="button secondary"
             onClick={() =>
@@ -86,7 +96,7 @@ export function About({
               void backend.openProjectPage("releases").catch(onError)
             }
           >
-            リリースノート
+            {t("リリースノート")}
             <ArrowUpRight size={14} />
           </button>
         </div>
@@ -94,8 +104,8 @@ export function About({
       <section className="glass-panel settings-section">
         <div className="panel-heading">
           <div>
-            <h3>更新を確認</h3>
-            <p>GitHub Releases の最新バージョンを確認します。</p>
+            <h3>{t("更新を確認")}</h3>
+            <p>{t("GitHub Releases の最新バージョンを確認します。")}</p>
           </div>
           <button
             className="button secondary"
@@ -103,7 +113,7 @@ export function About({
             onClick={() => void check()}
           >
             <RefreshCw size={15} className={busy ? "spinning" : ""} />
-            {busy ? "確認中…" : "更新を確認"}
+            {busy ? t("確認中…") : t("更新を確認")}
           </button>
         </div>
         {update && (
@@ -111,10 +121,14 @@ export function About({
             <Check size={16} />
             <span>
               {!isDesktop
-                ? "サンプルモードです。更新確認はデスクトップアプリで実行できます。"
+                ? t(
+                    "サンプルモードです。更新確認はデスクトップアプリで実行できます。",
+                  )
                 : update.updateAvailable
-                  ? `新しいバージョン ${update.latestVersion} を利用できます。`
-                  : "最新のバージョンです。"}
+                  ? t("新しいバージョン {0} を利用できます。", {
+                      "0": update.latestVersion,
+                    })
+                  : t("最新のバージョンです。")}
             </span>
             {update.updateAvailable && (
               <button
@@ -123,49 +137,55 @@ export function About({
                   void backend.openProjectPage("releases").catch(onError)
                 }
               >
-                ダウンロード
+                {t("ダウンロード")}
                 <ArrowUpRight size={13} />
               </button>
             )}
           </div>
         )}
-        <p className="fine-print">自動ダウンロードや自動適用は行いません。</p>
+        <p className="fine-print">
+          {t("自動ダウンロードや自動適用は行いません。")}
+        </p>
       </section>
       <section className="glass-panel settings-section">
         <div className="panel-heading">
-          <h3>オープンソースライセンス</h3>
+          <h3>{t("オープンソースライセンス")}</h3>
           <button
             className="text-button"
             onClick={() =>
               void backend.openProjectPage("license").catch(onError)
             }
           >
-            GPL を読む
+            {t("GPL を読む")}
             <ArrowUpRight size={13} />
           </button>
         </div>
         <p className="license-copy">
-          Prism Relay は {info.license || "GPL-3.0-or-later"}{" "}
-          で公開されています。React / MIT、Tauri / MIT・Apache-2.0、Lucide /
-          ISC、QRCode / MIT をはじめ、オープンソースライブラリを使用しています。
+          {t("Prism Relay は")} {info.license || "GPL-3.0-or-later"}{" "}
+          {t(
+            "で公開されています。React / MIT、Tauri / MIT・Apache-2.0、Lucide / ISC、QRCode / MIT をはじめ、オープンソースライブラリを使用しています。",
+          )}
         </p>
         <button
           className="text-button license-button"
           disabled={licensesLoading}
           onClick={() => void showLicenses()}
         >
-          {licensesLoading ? "読み込み中…" : "使用ライブラリのライセンス一覧"}
+          {licensesLoading
+            ? t("読み込み中…")
+            : t("使用ライブラリのライセンス一覧")}
         </button>
       </section>
       <p className="disclaimer">
-        Minecraft、Lunar Client、Microsoft、Mojang
-        とは独立した非公式ツールです。
+        {t(
+          "Minecraft、Lunar Client、Microsoft、Mojang とは独立した非公式ツールです。",
+        )}
         <br />
-        各製品名・商標はそれぞれの権利者に帰属します。
+        {t("各製品名・商標はそれぞれの権利者に帰属します。")}
       </p>
       {licenses && (
         <Modal
-          title="オープンソースライセンス"
+          title={t("オープンソースライセンス")}
           onClose={() => setLicenses(null)}
         >
           <pre className="license-notices">{licenses}</pre>

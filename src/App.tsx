@@ -1,3 +1,5 @@
+import { I18nProvider, useI18n } from "./i18n";
+import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -13,7 +15,13 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import type { AppInfo, BackupManifest, Page, ScanReport } from "./models";
+import type {
+  AppInfo,
+  BackupManifest,
+  Page,
+  ScanReport,
+  Preferences,
+} from "./models";
 import { backend, isDesktop } from "./services/backend";
 import { usePreferences } from "./hooks/usePreferences";
 import { PrismMark } from "./components/PrismMark";
@@ -25,49 +33,48 @@ import { Backups } from "./pages/Backups";
 import { Settings } from "./pages/Settings";
 import { About } from "./pages/About";
 import { createRequestGuard } from "./utils/requestGuard";
-
 const navigation = [
   {
     id: "home",
     label: "ホーム",
-    title: "Overview",
+    title: "概要",
     icon: HomeIcon,
-    subtitle: "あなたのプレイ環境を、ひと目で。",
+    subtitle: "検出したアプリと設定を確認します。",
   },
   {
     id: "export",
     label: "エクスポート",
-    title: "Create share code",
+    title: "共有コードの作成",
     icon: ArrowUpRight,
-    subtitle: "あなたのセットアップを、ひとつのコードに。",
+    subtitle: "共有する設定を選択してコードを作成します。",
   },
   {
     id: "import",
     label: "インポート",
-    title: "Import settings",
+    title: "設定の読み込み",
     icon: ArrowDownToLine,
-    subtitle: "次のデバイスにも、いつものプレイ環境を。",
+    subtitle: "共有コードを読み込み、設定の差分を確認します。",
   },
   {
     id: "backups",
     label: "バックアップ",
-    title: "Backups",
+    title: "バックアップ",
     icon: HardDrive,
-    subtitle: "大切な設定の、セーフティネット。",
+    subtitle: "保存した設定の確認と復元を行います。",
   },
   {
     id: "settings",
     label: "設定",
-    title: "Preferences",
+    title: "環境設定",
     icon: Settings2,
-    subtitle: "あなたらしく、心地よく。",
+    subtitle: "表示言語、テーマ、設定フォルダを変更します。",
   },
   {
     id: "about",
     label: "アプリについて",
-    title: "About Prism Relay",
+    title: "Prism Relay について",
     icon: Info,
-    subtitle: "セットアップをつなぐ、小さなプリズム。",
+    subtitle: "バージョン、作者、ライセンスを確認します。",
   },
 ] as const;
 const emptyScan: ScanReport = {
@@ -81,8 +88,14 @@ const emptyScan: ScanReport = {
   platform: "",
   runningProcesses: [],
 };
-
-export default function App() {
+function WorkspaceApp({
+  preferences,
+  setPreferences,
+}: {
+  preferences: Preferences;
+  setPreferences: Dispatch<SetStateAction<Preferences>>;
+}) {
+  const { t } = useI18n();
   const mainRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState<Page>("home");
   const [scan, setScan] = useState<ScanReport>(emptyScan);
@@ -100,7 +113,6 @@ export default function App() {
   const [scanFailed, setScanFailed] = useState(false);
   const scanGuard = useRef(createRequestGuard());
   const [lastExport, setLastExport] = useState<string | null>(null);
-  const { preferences, setPreferences } = usePreferences();
   const onError = useCallback(
     (value: unknown) =>
       setError(
@@ -136,7 +148,9 @@ export default function App() {
     void refresh();
   }, [refresh]);
   useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0 });
+    mainRef.current?.scrollTo({
+      top: 0,
+    });
   }, [page]);
   useEffect(() => {
     void backend.info().then(setInfo).catch(onError);
@@ -165,11 +179,11 @@ export default function App() {
             <strong>
               Prism<span>Relay</span>
             </strong>
-            <small>YOUR SETUP, EVERYWHERE</small>
+            <small>{t("SETTINGS SHARING")}</small>
           </div>
         </div>
-        <div className="workspace-label">WORKSPACE</div>
-        <nav aria-label="メインナビゲーション">
+        <div className="workspace-label">{t("WORKSPACE")}</div>
+        <nav aria-label={t("メインナビゲーション")}>
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -179,10 +193,10 @@ export default function App() {
                 setError(null);
               }}
               aria-current={page === id ? "page" : undefined}
-              aria-label={label}
+              aria-label={t(label)}
             >
               <Icon size={18} />
-              <span>{label}</span>
+              <span>{t(label)}</span>
               {page === id && <ChevronRight size={13} />}
             </button>
           ))}
@@ -192,12 +206,12 @@ export default function App() {
             <span className="status-dot" />
             <div>
               <strong>
-                {isDesktop ? "ローカルで動作中" : "サンプルモード"}
+                {isDesktop ? t("ローカルで動作中") : t("サンプルモード")}
               </strong>
               <small>
                 {isDesktop
-                  ? "あなたのデータは、あなたのもの。"
-                  : "実際の設定は変更しません"}
+                  ? t("設定ファイルをローカルで処理")
+                  : t("実際の設定は変更しません")}
               </small>
             </div>
             <ShieldCheck size={16} />
@@ -212,21 +226,22 @@ export default function App() {
         <header className="page-header">
           <div>
             <div className="header-breadcrumb">
-              Workspace <ChevronRight size={11} /> {active.label}
+              {t("Workspace")}
+              <ChevronRight size={11} /> {t(active.label)}
             </div>
-            <h1>{active.title}</h1>
-            <p>{active.subtitle}</p>
+            <h1>{t(active.title)}</h1>
+            <p>{t(active.subtitle)}</p>
           </div>
           <div className="header-actions">
             <span className="offline-badge">
               <span />
-              {isDesktop ? "LOCAL FIRST" : "PREVIEW"}
+              {isDesktop ? t("LOCAL FIRST") : t("PREVIEW")}
             </span>
             <button
               className="icon-button refresh-button"
               onClick={() => void refresh()}
               disabled={loading}
-              aria-label="設定を再検出"
+              aria-label={t("設定を再検出")}
             >
               <RefreshCw size={17} className={loading ? "spinning" : ""} />
             </button>
@@ -236,16 +251,19 @@ export default function App() {
           <div className="demo-banner">
             <FlaskConical size={15} />
             <span>
-              サンプルモード —
-              デモ用の設定を表示しています。実際のファイルにはアクセスしません。
+              {t(
+                "サンプルモード — デモ用の設定を表示しています。実際のファイルにはアクセスしません。",
+              )}
             </span>
-            <span className="demo-label">DEMO</span>
+            <span className="demo-label">{t("DEMO")}</span>
           </div>
         )}
         <ErrorBanner error={error} onClose={() => setError(null)} />
         {scan.warnings.length > 0 && (
           <details className="scan-warnings">
-            <summary>{scan.warnings.length} 件の検出メッセージ</summary>
+            <summary>
+              {scan.warnings.length} {t("件の検出メッセージ")}
+            </summary>
             {scan.warnings.map((warning, index) => (
               <p key={index}>{warning}</p>
             ))}
@@ -254,8 +272,8 @@ export default function App() {
         {loading && !scan.settings.length ? (
           <div className="loading-screen">
             <PrismMark className="loading-prism" />
-            <h2>プレイ環境を探しています…</h2>
-            <p>設定ファイルを読み取り専用で確認しています。</p>
+            <h2>{t("プレイ環境を探しています…")}</h2>
+            <p>{t("設定ファイルを読み取り専用で確認しています。")}</p>
           </div>
         ) : (
           <div className="page-content" key={page}>
@@ -285,10 +303,10 @@ export default function App() {
           </div>
         )}
         <footer className="main-footer">
-          <span>Made for your next session.</span>
+          <span>{t("Minecraft & Lunar Client settings")}</span>
           <span>
             <ShieldCheck size={11} />
-            プライベートに、安全に。
+            {t("設定データは送信されません")}
           </span>
         </footer>
       </main>
@@ -299,12 +317,23 @@ export default function App() {
           <button
             className="icon-button"
             onClick={() => setNotice(null)}
-            aria-label="通知を閉じる"
+            aria-label={t("通知を閉じる")}
           >
             <X size={14} />
           </button>
         </div>
       )}
     </div>
+  );
+}
+export default function App() {
+  const { preferences, setPreferences } = usePreferences();
+  useEffect(() => {
+    document.documentElement.lang = preferences.language;
+  }, [preferences.language]);
+  return (
+    <I18nProvider language={preferences.language}>
+      <WorkspaceApp preferences={preferences} setPreferences={setPreferences} />
+    </I18nProvider>
   );
 }

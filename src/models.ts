@@ -17,6 +17,10 @@ export interface ScanRequest {
   lunarRoot?: string;
 }
 export interface ScanReport {
+  applicationIcons?: {
+    minecraft?: string | null;
+    lunar?: string | null;
+  } | null;
   settings: Setting[];
   files: {
     id: string;
@@ -106,7 +110,9 @@ export interface UpdateInfo {
 export type Page =
   "home" | "export" | "import" | "backups" | "settings" | "about";
 export type Theme = "dark" | "light" | "system";
+export type Language = "en" | "ja" | "ko" | "zh" | "fi" | "es" | "de";
 export interface Preferences {
+  language: Language;
   theme: Theme;
   reduceMotion: boolean;
   request: ScanRequest;

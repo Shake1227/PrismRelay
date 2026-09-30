@@ -78,4 +78,11 @@ describe("setting selection", () => {
     );
     expect(buildTree(settings, "no such setting")).toEqual([]);
   });
+  it("searches translated headings while preserving stable setting identities", () => {
+    const tree = buildTree(settings, "画面", (label) =>
+      label === "Video" ? "画面" : label,
+    );
+    expect(tree[0].ids).toEqual(["fov", "vsync"]);
+    expect(tree[0].children[0].label).toBe("Video");
+  });
 });

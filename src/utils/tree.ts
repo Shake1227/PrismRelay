@@ -12,7 +12,11 @@ export interface SelectionState {
   indeterminate: boolean;
 }
 
-export function buildTree(settings: Setting[], search = ""): SettingNode[] {
+export function buildTree(
+  settings: Setting[],
+  search = "",
+  translateLabel: (label: string) => string = (label) => label,
+): SettingNode[] {
   const roots: SettingNode[] = [];
   const query = search.trim().toLocaleLowerCase();
   for (const setting of settings) {
@@ -20,7 +24,7 @@ export function buildTree(settings: Setting[], search = ""): SettingNode[] {
       setting.source === "minecraft" ? "Minecraft" : "Lunar Client";
     if (
       query &&
-      !`${source} ${setting.category} ${setting.group} ${setting.label} ${setting.pointer}`
+      !`${source} ${setting.category} ${setting.group} ${setting.label} ${setting.pointer} ${translateLabel(setting.category)} ${translateLabel(setting.group)} ${translateLabel(setting.label)}`
         .toLocaleLowerCase()
         .includes(query)
     )
