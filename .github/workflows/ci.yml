@@ -66,6 +66,8 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }} --all-targets --locked -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }} --locked
+      - name: Clean previous installers
+        run: node -e "require('node:fs').rmSync('src-tauri/target/${{ matrix.target }}/release/bundle', {recursive:true, force:true})"
       - run: npm run tauri build -- --target ${{ matrix.target }} ${{ matrix.bundle }}
       - name: Verify Windows installation and startup
         if: runner.os == 'Windows'
