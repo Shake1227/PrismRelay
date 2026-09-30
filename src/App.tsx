@@ -298,7 +298,7 @@ function WorkspaceApp({
               {scan.warnings.length} {t("件の検出メッセージ")}
             </summary>
             {scan.warnings.map((warning, index) => (
-              <p key={index}>{warning}</p>
+              <p key={index}>{t(warning)}</p>
             ))}
           </details>
         )}

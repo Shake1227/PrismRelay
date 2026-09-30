@@ -3,6 +3,70 @@ import type { Language } from "../models";
 type MessageRow = [string, string, string, string, string, string, string];
 const rows: MessageRow[] = [
   [
+    "OptiFine settings were detected. Their unverified fields remain read-only.",
+    "OptiFine settings detected. Reading and backup are supported.",
+    "OptiFine 설정을 감지했습니다. 읽기와 백업을 지원합니다.",
+    "已检测到 OptiFine 设置。目前支持读取和备份。",
+    "OptiFine-asetukset löytyivät. Niitä voi lukea ja varmuuskopioida.",
+    "Ajustes de OptiFine detectados. Se pueden leer y guardar en una copia de seguridad.",
+    "OptiFine-Einstellungen erkannt. Lesen und Sichern werden unterstützt.",
+  ],
+  [
+    "Minecraft, Lunar Client, or a Java game may be running. Close the game before changing settings.",
+    "A game may be running. Close it before changing settings.",
+    "게임이 실행 중일 수 있습니다. 설정을 변경하기 전에 게임을 종료하세요.",
+    "游戏可能正在运行。更改设置前请先退出游戏。",
+    "Peli saattaa olla käynnissä. Sulje se ennen asetusten muuttamista.",
+    "Puede haber un juego en ejecución. Cerrarlo antes de cambiar los ajustes.",
+    "Möglicherweise läuft ein Spiel. Vor dem Ändern der Einstellungen schließen.",
+  ],
+  [
+    "A folder contains too many profiles. Choose a specific settings folder to scan it.",
+    "Profile scan limit reached. Choose a specific settings folder.",
+    "프로필 검색 한도에 도달했습니다. 설정 폴더를 직접 지정하세요.",
+    "已达到配置档案扫描上限。请指定具体的设置文件夹。",
+    "Profiilien haun raja saavutettiin. Valitse tietty asetuskansio.",
+    "Se ha alcanzado el límite de perfiles. Elegir una carpeta de configuración concreta.",
+    "Suchlimit für Profile erreicht. Einen bestimmten Einstellungsordner auswählen.",
+  ],
+  [
+    "The scan limit was reached. Choose a specific settings folder to continue.",
+    "Scan limit reached. Choose a specific settings folder to continue.",
+    "검색 한도에 도달했습니다. 계속하려면 설정 폴더를 직접 지정하세요.",
+    "已达到扫描上限。请指定具体的设置文件夹以继续。",
+    "Haun raja saavutettiin. Jatka valitsemalla tietty asetuskansio.",
+    "Se ha alcanzado el límite de búsqueda. Elegir una carpeta de configuración concreta para continuar.",
+    "Suchlimit erreicht. Zum Fortfahren einen bestimmten Einstellungsordner auswählen.",
+  ],
+  [
+    "The setting limit was reached. Choose a specific profile.",
+    "Setting scan limit reached. Choose a specific profile.",
+    "설정 검색 한도에 도달했습니다. 프로필을 직접 지정하세요.",
+    "已达到设置扫描上限。请指定具体的配置档案。",
+    "Asetusten haun raja saavutettiin. Valitse tietty profiili.",
+    "Se ha alcanzado el límite de ajustes. Elegir un perfil concreto.",
+    "Suchlimit für Einstellungen erreicht. Ein bestimmtes Profil auswählen.",
+  ],
+  [
+    "This code comes from another Minecraft version. Only compatible settings already present in the selected profile will be imported.",
+    "The code comes from another Minecraft version. Only compatible settings in the selected profile will be applied.",
+    "다른 Minecraft 버전에서 만든 코드입니다. 선택한 프로필에 있는 호환 설정만 적용됩니다.",
+    "此代码来自另一个 Minecraft 版本。仅应用所选配置档案中兼容的设置。",
+    "Koodi on toisesta Minecraft-versiosta. Vain valitun profiilin yhteensopivat asetukset otetaan käyttöön.",
+    "El código procede de otra versión de Minecraft. Solo se aplicarán los ajustes compatibles del perfil seleccionado.",
+    "Der Code stammt aus einer anderen Minecraft-Version. Nur kompatible Einstellungen im ausgewählten Profil werden übernommen.",
+  ],
+  [
+    "HUD coordinates will be copied as stored. Their layout can differ on another display; no unverified resolution scaling is applied.",
+    "HUD coordinates are copied as stored. The layout may differ on another display; check it after applying.",
+    "HUD 좌표는 원래 값대로 복사됩니다. 다른 화면에서는 배치가 달라질 수 있으므로 적용 후 확인하세요.",
+    "HUD 坐标将按原值复制。在其他显示器上布局可能不同，请在应用后检查。",
+    "HUD-koordinaatit kopioidaan sellaisinaan. Asettelu voi olla erilainen toisella näytöllä. Tarkista se käyttöönoton jälkeen.",
+    "Las coordenadas del HUD se copian tal como están. La distribución puede variar en otra pantalla; revisarla después de aplicar.",
+    "HUD-Koordinaten werden unverändert kopiert. Auf einem anderen Bildschirm kann die Anordnung abweichen; nach dem Anwenden prüfen.",
+  ],
+
+  [
     "メニューを展開",
     "Expand menu",
     "메뉴 펼치기",
@@ -2891,4 +2955,18 @@ export const japaneseMessages: Record<string, string> = {
   Use: "アイテムを使う",
   "サンプルの差分です。実際の設定ファイルにはアクセスしません。":
     "デモ用の設定で変更内容を表示しています。",
+  "OptiFine settings were detected. Their unverified fields remain read-only.":
+    "OptiFine の設定を検出しました。読み取りとバックアップに対応しています。",
+  "Minecraft, Lunar Client, or a Java game may be running. Close the game before changing settings.":
+    "ゲームが起動している可能性があります。設定の変更前に終了してください。",
+  "A folder contains too many profiles. Choose a specific settings folder to scan it.":
+    "プロフィールの検出上限に達しました。対象の設定フォルダを指定してください。",
+  "The scan limit was reached. Choose a specific settings folder to continue.":
+    "検出範囲の上限に達しました。対象の設定フォルダを指定してください。",
+  "The setting limit was reached. Choose a specific profile.":
+    "設定項目の検出上限に達しました。プロフィールを指定してください。",
+  "This code comes from another Minecraft version. Only compatible settings already present in the selected profile will be imported.":
+    "作成元の Minecraft バージョンが異なります。適用先にある互換設定だけを適用します。",
+  "HUD coordinates will be copied as stored. Their layout can differ on another display; no unverified resolution scaling is applied.":
+    "HUD の座標は元の値をコピーします。画面の解像度が違うと配置が変わるため、適用後に確認してください。",
 };
