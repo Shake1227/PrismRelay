@@ -12,18 +12,22 @@ import zipfile
 
 TAG = "v1.0.0"
 TAG_COMMIT = "c904cb565554f1458f5e52f9c7ac47766d96f4bf"
-WINDOWS_SOURCE = "prism-relay-v1.0.0-windows-source.tar.gz"
-ORIGINAL_SOURCE = "prism-relay-v1.0.0-source.tar.gz"
+SOURCE = "prism-relay-v1.0.0-source.tar.gz"
+LEGACY_WINDOWS_SOURCE = "prism-relay-v1.0.0-windows-source.tar.gz"
 TARGETS = {
     "x86_64-pc-windows-msvc": "windows-x64",
     "aarch64-pc-windows-msvc": "windows-arm64",
+    "aarch64-apple-darwin": "macos-apple-silicon",
+    "x86_64-apple-darwin": "macos-intel",
 }
 WINDOWS_FILES = [
     "prism-relay-" + platform + suffix
     for platform in TARGETS.values()
+    if platform.startswith("windows-")
     for suffix in (".msi", "-setup.exe")
 ]
 MAC_FILES = ["prism-relay-macos-apple-silicon.dmg", "prism-relay-macos-intel.dmg"]
+INSTALLER_FILES = WINDOWS_FILES + MAC_FILES
 MAX_FILE = 512 * 1024 * 1024
 
 
@@ -80,6 +84,15 @@ def read_plan(state):
     return json.loads((state / "plan.json").read_text(encoding="utf-8"))
 
 
+def artifact_name(target):
+    return ("windows-installers-" if TARGETS[target].startswith("windows-") else "installers-") + target
+
+
+def installer_names(platform):
+    suffixes = (".msi", "-setup.exe") if platform.startswith("windows-") else (".dmg",)
+    return {"prism-relay-" + platform + suffix for suffix in suffixes}
+
+
 def validate_run(client, run_id):
     require(bool(re.fullmatch(r"[1-9][0-9]{0,19}", str(run_id))), "CI run ID must be a positive integer")
     run = client.api("actions/runs/" + str(run_id))
@@ -111,7 +124,7 @@ def validate_release(client):
         require(bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}", name)) and name not in names, "Unsafe or duplicate release asset name")
         require(isinstance(asset.get("size"), int) and 0 < asset["size"] <= MAX_FILE, "Invalid release asset size")
         names.add(name)
-    require(set(WINDOWS_FILES + MAC_FILES + [ORIGINAL_SOURCE, "LICENSE", "THIRD_PARTY_NOTICES.txt", "SHA256SUMS.txt"]) <= names, "The release is missing required assets")
+    require(set(INSTALLER_FILES + [SOURCE, "BUILD_INFO.json", "LICENSE", "THIRD_PARTY_NOTICES.txt", "SHA256SUMS.txt"]) <= names, "The release is missing required assets")
     return release
 
 
@@ -138,8 +151,8 @@ def inspect(client, state, run_id):
         raise UpdateError("Too many CI artifacts")
     selected = {}
     for target in TARGETS:
-        matches = [artifact for artifact in artifacts if artifact.get("name") == "windows-installers-" + target]
-        require(len(matches) == 1 and matches[0].get("expired") is False, "Missing, expired or duplicate Windows artifact: " + target)
+        matches = [artifact for artifact in artifacts if artifact.get("name") == artifact_name(target)]
+        require(len(matches) == 1 and matches[0].get("expired") is False, "Missing, expired or duplicate installer artifact: " + target)
         artifact = matches[0]
         origin = artifact.get("workflow_run", {})
         require(origin.get("id") == int(run_id) and origin.get("head_sha") == run["head_sha"] and origin.get("head_branch") == "main", "Artifact source does not match the selected CI run")
@@ -155,7 +168,7 @@ def inspect(client, state, run_id):
     if output:
         with open(output, "a", encoding="utf-8") as stream:
             stream.write("source_sha=" + run["head_sha"] + "\n")
-    print("Validated successful main CI run and both Windows artifacts")
+    print("Validated successful main CI run and all four installer artifacts")
 
 
 def check_download(directory, assets):
@@ -176,13 +189,14 @@ def check_checksums(directory):
         require(name not in entries and name != "SHA256SUMS.txt" and (directory / name).is_file(), "Duplicate or unknown release checksum entry")
         require(digest(directory / name) == expected.lower(), "Existing release checksum differs: " + name)
         entries.add(name)
-    require(set(WINDOWS_FILES + MAC_FILES + [ORIGINAL_SOURCE]) <= entries, "Missing existing installer or source checksums")
+    require(entries == {path.name for path in directory.iterdir()} - {"SHA256SUMS.txt"}, "Release checksums do not cover every asset")
 
 
 def check_source(source, sha):
     require(command(["git", "-C", str(source), "rev-parse", "HEAD"]).decode().strip() == sha, "Checked-out source does not match CI")
     require(command(["git", "-C", str(source), "rev-parse", TAG + "^{commit}"]).decode().strip() == TAG_COMMIT, "Checked-out release tag moved")
     command(["git", "-C", str(source), "merge-base", "--is-ancestor", sha, "origin/main"])
+    require(not command(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=no"]).strip(), "Checked-out source has modified tracked files")
     package = json.loads((source / "package.json").read_text(encoding="utf-8"))
     lock = json.loads((source / "package-lock.json").read_text(encoding="utf-8"))
     tauri = json.loads((source / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
@@ -207,7 +221,7 @@ def prepare(client, state, source):
     client.download(assets)
     check_download(assets, plan["release"]["assets"])
     check_checksums(assets)
-    (backup / "release-body.md").write_text(plan["release"]["body"], encoding="utf-8")
+    (backup / "release-body.md").write_bytes(plan["release"]["body"].encode("utf-8"))
     write_json(backup / "release.json", plan["release"])
     expected = {path.name: digest(path) for path in assets.iterdir()}
     write_json(backup / "SHA256.json", expected)
@@ -218,42 +232,53 @@ def prepare(client, state, source):
         archive_path = state / (target + ".zip")
         client.artifact(artifact["id"], archive_path)
         require(archive_path.stat().st_size <= MAX_FILE and "sha256:" + digest(archive_path) == artifact["digest"], "CI artifact digest differs")
-        names = {"prism-relay-" + platform + suffix for suffix in (".msi", "-setup.exe")}
+        names = installer_names(platform)
         with zipfile.ZipFile(archive_path) as archive:
-            require(len(archive.infolist()) == 2 and {entry.filename for entry in archive.infolist()} == names, "Unexpected CI artifact files")
+            require(len(archive.infolist()) == len(names) and {entry.filename for entry in archive.infolist()} == names, "Unexpected CI artifact files")
             for entry in archive.infolist():
-                require(not entry.is_dir() and (entry.external_attr >> 16) & 0o170000 != 0o120000 and 0 < entry.file_size <= MAX_FILE, "Invalid CI artifact member")
+                require(not entry.is_dir() and (entry.external_attr >> 16) & 0o170000 in {0, 0o100000} and 0 < entry.file_size <= MAX_FILE, "Invalid CI artifact member")
                 path = output / entry.filename
                 with archive.open(entry) as stream, path.open("wb") as destination:
                     shutil.copyfileobj(stream, destination)
                 require(path.stat().st_size == entry.file_size, "Extracted installer size differs")
                 with path.open("rb") as stream:
                     magic = stream.read(8)
-                require(magic.startswith(b"MZ") if path.suffix == ".exe" else magic == bytes.fromhex("d0cf11e0a1b11ae1"), "Installer file type differs")
+                    if path.suffix == ".dmg":
+                        require(path.stat().st_size >= 512, "DMG trailer is missing")
+                        stream.seek(-512, os.SEEK_END)
+                        valid = stream.read(4) == b"koly"
+                    elif path.suffix == ".exe":
+                        valid = magic.startswith(b"MZ")
+                    else:
+                        valid = magic == bytes.fromhex("d0cf11e0a1b11ae1")
+                require(valid, "Installer file type differs")
     for name in ("LICENSE", "THIRD_PARTY_NOTICES.txt"):
         require((source / name).read_bytes() == (assets / name).read_bytes(), "License notices changed; a broader release update is required")
-    command(["git", "-C", str(source), "-c", "tar.umask=0002", "archive", "--format=tar.gz", "--prefix=prism-relay-v1.0.0-windows/", plan["sourceCommit"], "-o", str((output / WINDOWS_SOURCE).resolve())])
+    command(["git", "-C", str(source), "-c", "tar.umask=0002", "archive", "--format=tar.gz", "--prefix=prism-relay-v1.0.0/", plan["sourceCommit"], "-o", str((output / SOURCE).resolve())])
     (state / "release-notes.md").write_bytes((source / "docs/release-notes.md").read_bytes())
     info = {
         "releaseTag": TAG, "tagCommit": TAG_COMMIT,
-        "windows": {"sourceCommit": plan["sourceCommit"], "sourceArchive": WINDOWS_SOURCE, "ciRunId": plan["ciRunId"], "ciRunAttempt": plan["ciRunAttempt"], "artifacts": plan["artifacts"]},
-        "macOS": {"sourceCommit": TAG_COMMIT, "sourceArchive": ORIGINAL_SOURCE, "assets": {name: expected[name] for name in MAC_FILES}},
+        "windows": {"sourceCommit": plan["sourceCommit"], "sourceArchive": SOURCE, "ciRunId": plan["ciRunId"], "ciRunAttempt": plan["ciRunAttempt"], "artifacts": {target: artifact for target, artifact in plan["artifacts"].items() if TARGETS[target].startswith("windows-")}},
+        "macOS": {"sourceCommit": plan["sourceCommit"], "sourceArchive": SOURCE, "ciRunId": plan["ciRunId"], "ciRunAttempt": plan["ciRunAttempt"], "artifacts": {target: artifact for target, artifact in plan["artifacts"].items() if TARGETS[target].startswith("macos-")}},
     }
     write_json(output / "BUILD_INFO.json", info)
     plan["expectedAssets"] = expected
-    plan["newAssets"] = [WINDOWS_SOURCE, "BUILD_INFO.json", *WINDOWS_FILES, "SHA256SUMS.txt"]
-    plan["preparedAssets"] = {name: digest(output / name) for name in WINDOWS_FILES + [WINDOWS_SOURCE, "BUILD_INFO.json"]}
+    plan["newAssets"] = [SOURCE, "BUILD_INFO.json", *INSTALLER_FILES, "SHA256SUMS.txt"]
+    plan["removedAssets"] = [LEGACY_WINDOWS_SOURCE] if LEGACY_WINDOWS_SOURCE in expected else []
+    plan["preparedAssets"] = {name: digest(output / name) for name in INSTALLER_FILES + [SOURCE, "BUILD_INFO.json"]}
+    plan["preparedNotes"] = digest(state / "release-notes.md")
     write_json(state / "plan.json", plan)
-    print("Prepared four Windows installers and corresponding source; all original assets are backed up")
+    print("Prepared all six installers and unified source; all original assets are backed up")
 
 
 def checksum_output(state, plan, backup_artifact_id):
     output = state / "output"
     info = json.loads((output / "BUILD_INFO.json").read_text(encoding="utf-8"))
     info["backupArtifactId"] = int(backup_artifact_id)
-    info["windows"]["sha256"] = {name: digest(output / name) for name in WINDOWS_FILES + [WINDOWS_SOURCE]}
+    for platform, files in (("windows", WINDOWS_FILES), ("macOS", MAC_FILES)):
+        info[platform]["sha256"] = {name: digest(output / name) for name in files + [SOURCE]}
     write_json(output / "BUILD_INFO.json", info)
-    expected = dict(plan["expectedAssets"])
+    expected = {name: value for name, value in plan["expectedAssets"].items() if name not in plan["removedAssets"]}
     expected.update({name: digest(output / name) for name in plan["newAssets"] if name != "SHA256SUMS.txt"})
     (output / "SHA256SUMS.txt").write_text("".join(expected[name] + "  " + name + "\n" for name in sorted(expected) if name != "SHA256SUMS.txt"), encoding="utf-8")
     expected["SHA256SUMS.txt"] = digest(output / "SHA256SUMS.txt")
@@ -304,15 +329,21 @@ def publish(client, state, backup_artifact_id):
         require(digest(state / "backup/assets" / name) == expected, "The original release backup changed")
     for name, expected in plan["preparedAssets"].items():
         require(digest(state / "output" / name) == expected, "Prepared release output changed")
+    require((state / "backup/release-body.md").read_bytes().decode("utf-8") == plan["release"]["body"], "The original release body backup changed")
+    require(digest(state / "release-notes.md") == plan["preparedNotes"], "Prepared release notes changed")
     expected = checksum_output(state, plan, backup_artifact_id)
     attempted = []
     try:
         for name in plan["newAssets"]:
             attempted.append(name)
             client.upload(state / "output" / name)
+        for name in plan["removedAssets"]:
+            attempted.append(name)
+            client.delete(name)
         client.edit(state / "release-notes.md")
         release = validate_release(client)
         require({asset["name"] for asset in release["assets"]} == set(expected), "Published release asset set differs")
+        require((release.get("body") or "") == (state / "release-notes.md").read_bytes().decode("utf-8"), "Published release body differs")
         verified = state / "verified"
         verified.mkdir()
         client.download(verified)
@@ -321,8 +352,8 @@ def publish(client, state, backup_artifact_id):
         check_checksums(verified)
     except Exception as failure:
         rollback(client, state, plan, attempted)
-        raise UpdateError("Windows update failed; original assets and release body were restored") from failure
-    print("Updated Windows assets and checksums; the original tag, macOS installers and source are unchanged")
+        raise UpdateError("Release update failed; original assets and release body were restored") from failure
+    print("Updated all six installers, unified source and checksums; the original tag and license notices are unchanged")
 
 
 def main():
@@ -347,5 +378,5 @@ if __name__ == "__main__":
     try:
         main()
     except (UpdateError, OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
-        print("Windows release update failed: " + str(error), file=sys.stderr)
+        print("Release update failed: " + str(error), file=sys.stderr)
         sys.exit(1)

@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Local, selective Lunar Client and Minecraft settings sharing"
 edition = "2021"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/SHake1227/prism-relay"
+repository = "https://github.com/Shake1227/PrismRelay"
 rust-version = "1.90"
 
 [lib]

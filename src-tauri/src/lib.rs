@@ -225,9 +225,9 @@ fn open_backup_folder(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 fn open_project_page(page: String) -> Result<(), String> {
     let url = match page.as_str() {
-        "repository" => "https://github.com/SHake1227/prism-relay",
-        "releases" => "https://github.com/SHake1227/prism-relay/releases",
-        "license" => "https://github.com/SHake1227/prism-relay/blob/main/LICENSE",
+        "repository" => "https://github.com/Shake1227/PrismRelay",
+        "releases" => "https://github.com/Shake1227/PrismRelay/releases",
+        "license" => "https://github.com/Shake1227/PrismRelay/blob/main/LICENSE",
         "x" => "https://x.com/shake_1227",
         _ => return Err("このリンクは開けません。".into()),
     };
@@ -250,7 +250,7 @@ fn get_app_info() -> AppInfo {
         name: "Prism Relay",
         version: env!("CARGO_PKG_VERSION"),
         platform: std::env::consts::OS,
-        repository: "https://github.com/SHake1227/prism-relay",
+        repository: "https://github.com/Shake1227/PrismRelay",
         license: "GPL-3.0-or-later",
     }
 }

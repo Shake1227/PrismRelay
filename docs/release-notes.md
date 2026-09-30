@@ -10,9 +10,11 @@ MinecraftとLunar Clientの設定を、共有コードで別のPCへ持ち運べ
 - ダーク・ライト・OS連動テーマ、アニメーションの軽減
 - 端末内のMinecraft・Lunar Clientアイコンを表示
 - Windows用の角丸アプリアイコン
+- 見出し周囲の背景色を統一
+- GitHub APIで最新バージョンを確認
 - 作者: Shake_1227 · X: @shake_1227
 
-Windowsではx64またはARM64のMSI / setup.exeを選んでインストールしてください。Windows版の対応するソースは `prism-relay-v1.0.0-windows-source.tar.gz`、Mac版は `prism-relay-v1.0.0-source.tar.gz` に添付しています。
+Windowsではx64またはARM64のMSI / setup.exeを選んでインストールしてください。Windows・Mac版の対応するソースは、添付の `prism-relay-v1.0.0-source.tar.gz` です。
 
 ### Macで初めて開くとき
 

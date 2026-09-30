@@ -101,13 +101,14 @@ function WorkspaceApp({
   const { t } = useI18n();
   const mainRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState<Page>("home");
+  const [headerScrolled, setHeaderScrolled] = useState(false);
   const [scan, setScan] = useState<ScanReport>(emptyScan);
   const [backups, setBackups] = useState<BackupManifest[]>([]);
   const [info, setInfo] = useState<AppInfo>({
     name: "Prism Relay",
     version: APP_VERSION,
     platform: "",
-    repository: "https://github.com/SHake1227/prism-relay",
+    repository: "https://github.com/Shake1227/PrismRelay",
     license: "GPL-3.0-or-later",
   });
   const [error, setError] = useState<string | null>(null);
@@ -267,8 +268,14 @@ function WorkspaceApp({
           </button>
         </div>
       </aside>
-      <main className="main-content" ref={mainRef}>
-        <header className="page-header">
+      <main
+        className="main-content"
+        ref={mainRef}
+        onScroll={(event) =>
+          setHeaderScrolled(event.currentTarget.scrollTop > 0)
+        }
+      >
+        <header className={`page-header ${headerScrolled ? "scrolled" : ""}`}>
           <div>
             <div className="header-breadcrumb">
               {t("Workspace")}

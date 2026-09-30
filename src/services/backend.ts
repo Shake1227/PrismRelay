@@ -88,7 +88,7 @@ export const backend = {
           name: "Prism Relay",
           version: APP_VERSION,
           platform: "Sample",
-          repository: "https://github.com/SHake1227/prism-relay",
+          repository: "https://github.com/Shake1227/PrismRelay",
           license: "GPL-3.0-or-later",
         }),
   updates: () =>
@@ -98,7 +98,7 @@ export const backend = {
           currentVersion: APP_VERSION,
           latestVersion: APP_VERSION,
           updateAvailable: false,
-          releaseUrl: "https://github.com/SHake1227/prism-relay/releases",
+          releaseUrl: "https://github.com/Shake1227/PrismRelay/releases",
         }),
   openProjectPage: (page: "repository" | "releases" | "license" | "x") => {
     if (isDesktop) return invoke<void>("open_project_page", { page });
@@ -111,7 +111,7 @@ export const backend = {
     window.open(
       page === "x"
         ? "https://x.com/shake_1227"
-        : `https://github.com/SHake1227/prism-relay${suffix}`,
+        : `https://github.com/Shake1227/PrismRelay${suffix}`,
       "_blank",
       "noopener,noreferrer",
     );

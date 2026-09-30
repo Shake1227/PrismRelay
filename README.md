@@ -2,7 +2,7 @@
 
 Minecraft と Lunar Client の設定を選んで、別の PC に持ち運ぶためのアプリです。操作設定だけ、HUD だけ、といった共有ができます。受け取った共有コードは、現在の設定との差分を確認してから適用できます。
 
-[ダウンロード](https://github.com/Shake1227/prism-relay/releases) · [共有コードの仕様](docs/share-format.md) · [Lunar 対応範囲](docs/lunar-schema.md)
+[ダウンロード](https://github.com/Shake1227/PrismRelay/releases) · [共有コードの仕様](docs/share-format.md) · [Lunar 対応範囲](docs/lunar-schema.md)
 
 ![Prism Relay](docs/screenshots/home.jpg)
 
@@ -124,7 +124,7 @@ Windows では MSI とセットアップ EXE、macOS ではアプリと DMG を�
 
 Windows のアプリアイコンは `src-tauri/icons/source-windows.svg` から生成します。SVG を編集した際は `node scripts/generate-windows-icon.mjs` を実行してください。
 
-既存リリースの Windows 配布ファイルを更新する場合は、CI 完了後に「Update Windows release」を手動実行し、その CI の run ID を指定します。対応するソースとチェックサムも更新され、ビルド元は `BUILD_INFO.json` で確認できます。
+既存リリースの配布ファイルを更新する場合は、CI 完了後に「Update release」を手動実行し、その CI の run ID を指定します。Windows の4本と macOS の2本のインストーラー、対応する `prism-relay-v1.0.0-source.tar.gz`、チェックサムをまとめて更新します。ビルド元は `BUILD_INFO.json` で確認できます。
 
 ビルド成果物、既知のゲーム設定・認証ファイル、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
 
