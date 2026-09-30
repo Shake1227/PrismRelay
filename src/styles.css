@@ -126,7 +126,7 @@ svg {
   position: relative;
   display: flex;
   height: 100vh;
-  min-height: 560px;
+  min-height: 0;
   overflow: hidden;
   background:
     radial-gradient(
@@ -154,6 +154,8 @@ svg {
   pointer-events: none;
 }
 .sidebar {
+  --sidebar-duration: 240ms;
+  --sidebar-easing: cubic-bezier(0.22, 1, 0.36, 1);
   width: 196px;
   flex-shrink: 0;
   padding: 32px 17px 19px;
@@ -163,6 +165,11 @@ svg {
   background: rgba(29, 28, 44, 0.32);
   backdrop-filter: blur(40px);
   z-index: 2;
+  min-height: 0;
+  overflow: hidden;
+  transition:
+    width var(--sidebar-duration) var(--sidebar-easing),
+    padding var(--sidebar-duration) var(--sidebar-easing);
 }
 [data-theme="light"] .sidebar {
   background: rgba(255, 255, 255, 0.25);
@@ -173,10 +180,30 @@ svg {
   gap: 9px;
   padding: 0 6px;
   margin-bottom: 44px;
+  flex-shrink: 0;
+  transition:
+    gap var(--sidebar-duration) var(--sidebar-easing),
+    margin-bottom var(--sidebar-duration) var(--sidebar-easing);
+}
+.brand > div {
+  flex: 1;
+  min-width: 0;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    opacity 160ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    max-width var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s;
 }
 .brand-mark {
   width: 40px;
   height: 40px;
+  flex-shrink: 0;
+  transition:
+    width var(--sidebar-duration) var(--sidebar-easing),
+    height var(--sidebar-duration) var(--sidebar-easing);
 }
 .brand strong {
   display: block;
@@ -202,11 +229,25 @@ svg {
   font-size: 8px;
   padding: 0 14px;
   margin-bottom: 14px;
+  flex-shrink: 0;
+  height: 10px;
+  line-height: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    height var(--sidebar-duration) var(--sidebar-easing),
+    margin-bottom var(--sidebar-duration) var(--sidebar-easing),
+    opacity 160ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s;
 }
 .sidebar nav {
   display: flex;
   flex-direction: column;
   gap: 7px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .nav-item {
   height: 43px;
@@ -219,16 +260,32 @@ svg {
   font-size: 11px;
   font-weight: 500;
   border: 1px solid transparent;
+  flex-shrink: 0;
   transition:
     background 0.2s,
     color 0.2s,
-    transform 0.2s;
+    transform 0.2s,
+    padding var(--sidebar-duration) var(--sidebar-easing),
+    gap var(--sidebar-duration) var(--sidebar-easing);
 }
 .nav-item span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 160px;
+  transition:
+    opacity 160ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    max-width var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s;
+}
+.nav-item > svg:last-child:not(:first-child) {
+  width: 13px;
+  overflow: hidden;
+  transition:
+    opacity 160ms ease,
+    width var(--sidebar-duration) var(--sidebar-easing);
 }
 .nav-item:hover {
   background: var(--panel-hover);
@@ -254,6 +311,23 @@ svg {
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.sidebar-details {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--sidebar-duration) var(--sidebar-easing),
+    opacity 160ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s;
+}
+.sidebar-details > div {
+  min-height: 0;
+  overflow: hidden;
 }
 .local-status {
   display: flex;
@@ -321,13 +395,19 @@ svg {
   flex: 1;
   min-width: 0;
 }
-.sidebar-toggle {
+.sidebar-bottom > .sidebar-toggle {
   flex-shrink: 0;
+  align-self: flex-start;
+  width: 34px;
+  height: 34px;
+  margin-top: 12px;
+  margin-left: 6px;
   border-color: var(--line-strong) !important;
   color: var(--muted);
-}
-.header-breadcrumb .sidebar-toggle svg {
-  opacity: 1;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    margin-left var(--sidebar-duration) var(--sidebar-easing);
 }
 .header-breadcrumb {
   display: flex;
@@ -2058,6 +2138,9 @@ input.switch:checked::before {
     gap: 8px;
     padding: 0 10px;
   }
+  .sidebar-bottom > .sidebar-toggle {
+    margin-left: 3px;
+  }
   .brand {
     gap: 6px;
   }
@@ -2255,8 +2338,7 @@ input.switch:checked::before {
   padding: 27px 9px 19px;
 }
 .sidebar-collapsed .brand {
-  justify-content: center;
-  padding: 0;
+  gap: 0;
   margin-bottom: 37px;
 }
 .sidebar-collapsed .brand-mark {
@@ -2264,16 +2346,52 @@ input.switch:checked::before {
   height: 35px;
 }
 .sidebar-collapsed .brand > div,
-.sidebar-collapsed .workspace-label,
-.sidebar-collapsed .nav-item span,
-.sidebar-collapsed .nav-item > svg:last-child:not(:first-child),
-.sidebar-collapsed .sidebar-bottom {
-  display: none;
+.sidebar-collapsed .nav-item span {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-5px);
+  visibility: hidden;
+  transition:
+    opacity 120ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    max-width var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s var(--sidebar-duration);
+}
+.sidebar-collapsed .workspace-label {
+  height: 0;
+  margin-bottom: 0;
+  opacity: 0;
+  transform: translateX(-5px);
+  visibility: hidden;
+  transition:
+    height var(--sidebar-duration) var(--sidebar-easing),
+    margin-bottom var(--sidebar-duration) var(--sidebar-easing),
+    opacity 120ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s var(--sidebar-duration);
+}
+.sidebar-collapsed .nav-item > svg:last-child:not(:first-child) {
+  width: 0;
+  opacity: 0;
+}
+.sidebar-collapsed .sidebar-details {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateX(-5px);
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--sidebar-duration) var(--sidebar-easing),
+    opacity 120ms ease,
+    transform var(--sidebar-duration) var(--sidebar-easing),
+    visibility 0s var(--sidebar-duration);
 }
 .sidebar-collapsed .nav-item {
-  justify-content: center;
-  padding: 0;
+  gap: 0;
+  padding: 0 13.5px;
   height: 43px;
+}
+.sidebar-collapsed .sidebar-bottom > .sidebar-toggle {
+  margin-left: 7px;
 }
 .app-shell.sidebar-collapsed .toast {
   left: calc(50% + 33px);
@@ -2285,6 +2403,7 @@ input.switch:checked::before {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }
@@ -2294,6 +2413,7 @@ input.switch:checked::before {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
   scroll-behavior: auto !important;
 }
 

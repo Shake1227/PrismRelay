@@ -20,7 +20,7 @@ describe("saved sidebar layout", () => {
     expect(markup).toContain(
       'aria-expanded="false" aria-controls="app-sidebar"',
     );
-    expect(markup.indexOf('aria-label="Expand menu"')).toBeGreaterThan(
+    expect(markup.indexOf('aria-label="Expand menu"')).toBeLessThan(
       markup.indexOf("</aside>"),
     );
   });

@@ -180,14 +180,19 @@ function WorkspaceApp({
       <aside className="sidebar" id="app-sidebar">
         <div className="brand">
           <PrismMark className="brand-mark" />
-          <div>
+          <div aria-hidden={preferences.sidebarCollapsed}>
             <strong>
               Prism<span>Relay</span>
             </strong>
             <small>v{info.version}</small>
           </div>
         </div>
-        <div className="workspace-label">{t("WORKSPACE")}</div>
+        <div
+          className="workspace-label"
+          aria-hidden={preferences.sidebarCollapsed}
+        >
+          {t("WORKSPACE")}
+        </div>
         <nav aria-label={t("メインナビゲーション")}>
           {navigation.map(({ id, label, icon: Icon }) => (
             <button
@@ -202,63 +207,70 @@ function WorkspaceApp({
               title={t(label)}
             >
               <Icon size={18} />
-              <span>{t(label)}</span>
+              <span aria-hidden={preferences.sidebarCollapsed}>{t(label)}</span>
               {page === id && <ChevronRight size={13} />}
             </button>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="local-status">
-            <span className="status-dot" />
+          <div
+            className="sidebar-details"
+            aria-hidden={preferences.sidebarCollapsed}
+          >
             <div>
-              <strong>
-                {isDesktop ? t("ローカルで動作中") : t("サンプルモード")}
-              </strong>
-              <small>
-                {isDesktop
-                  ? t("設定ファイルをローカルで処理")
-                  : t("実際の設定は変更しません")}
-              </small>
+              <div className="local-status">
+                <span className="status-dot" />
+                <div>
+                  <strong>
+                    {isDesktop ? t("ローカルで動作中") : t("サンプルモード")}
+                  </strong>
+                  <small>
+                    {isDesktop
+                      ? t("設定ファイルをローカルで処理")
+                      : t("実際の設定は変更しません")}
+                  </small>
+                </div>
+                <ShieldCheck size={16} />
+              </div>
+              <div className="sidebar-version">
+                <span>PRISM RELAY</span>
+                <span>v{info.version}</span>
+              </div>
             </div>
-            <ShieldCheck size={16} />
           </div>
-          <div className="sidebar-version">
-            <span>PRISM RELAY</span>
-            <span>v{info.version}</span>
-          </div>
+          <button
+            className="icon-button sidebar-toggle"
+            aria-label={
+              preferences.sidebarCollapsed
+                ? t("メニューを展開")
+                : t("メニューを折りたたむ")
+            }
+            title={
+              preferences.sidebarCollapsed
+                ? t("メニューを展開")
+                : t("メニューを折りたたむ")
+            }
+            aria-expanded={!preferences.sidebarCollapsed}
+            aria-controls="app-sidebar"
+            onClick={() =>
+              setPreferences((current) => ({
+                ...current,
+                sidebarCollapsed: !current.sidebarCollapsed,
+              }))
+            }
+          >
+            {preferences.sidebarCollapsed ? (
+              <PanelLeftOpen size={17} />
+            ) : (
+              <PanelLeftClose size={17} />
+            )}
+          </button>
         </div>
       </aside>
       <main className="main-content" ref={mainRef}>
         <header className="page-header">
           <div>
             <div className="header-breadcrumb">
-              <button
-                className="icon-button sidebar-toggle"
-                aria-label={
-                  preferences.sidebarCollapsed
-                    ? t("メニューを展開")
-                    : t("メニューを折りたたむ")
-                }
-                title={
-                  preferences.sidebarCollapsed
-                    ? t("メニューを展開")
-                    : t("メニューを折りたたむ")
-                }
-                aria-expanded={!preferences.sidebarCollapsed}
-                aria-controls="app-sidebar"
-                onClick={() =>
-                  setPreferences((current) => ({
-                    ...current,
-                    sidebarCollapsed: !current.sidebarCollapsed,
-                  }))
-                }
-              >
-                {preferences.sidebarCollapsed ? (
-                  <PanelLeftOpen size={17} />
-                ) : (
-                  <PanelLeftClose size={17} />
-                )}
-              </button>
               {t("Workspace")}
               <ChevronRight size={11} /> {t(active.label)}
             </div>
