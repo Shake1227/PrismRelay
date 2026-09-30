@@ -80,12 +80,16 @@ if ($msis.Count -ne 1 -or $setups.Count -ne 1) { throw 'Expected one MSI and one
 
 $msiDirectory = Join-Path $env:RUNNER_TEMP 'PrismRelayMsiSmoke'
 $msiPath = $msis[0].FullName
+$msiInstalled = $false
 try {
   Invoke-Installer 'msiexec.exe' "/i `"$msiPath`" /qn /norestart INSTALLDIR=`"$msiDirectory`"" 'MSI installation'
+  $msiInstalled = $true
   Assert-AppStarts $msiDirectory
 } finally {
-  Invoke-Installer 'msiexec.exe' "/x `"$msiPath`" /qn /norestart" 'MSI uninstallation'
-  Assert-AppRemoved $msiDirectory
+  if ($msiInstalled) {
+    Invoke-Installer 'msiexec.exe' "/x `"$msiPath`" /qn /norestart" 'MSI uninstallation'
+    Assert-AppRemoved $msiDirectory
+  }
 }
 
 $nsisDirectory = Join-Path $env:RUNNER_TEMP 'PrismRelayNsisSmoke'
@@ -97,5 +101,9 @@ try {
   if (Test-Path $uninstaller) {
     Invoke-Installer $uninstaller "/S _?=$nsisDirectory" 'Setup uninstallation'
     Assert-AppRemoved $nsisDirectory
+    Remove-Item -LiteralPath $uninstaller -Force
+    if (-not (Get-ChildItem -LiteralPath $nsisDirectory -Force)) {
+      Remove-Item -LiteralPath $nsisDirectory
+    }
   }
 }
