@@ -9,14 +9,28 @@ MinecraftとLunar Clientの設定を、共有コードで別のPCへ持ち運べ
 - 日本語・英語・韓国語・中国語・フィンランド語・スペイン語・ドイツ語
 - ダーク・ライト・OS連動テーマ、アニメーションの軽減
 - 端末内のMinecraft・Lunar Clientアイコンを表示
+- Windows用の角丸アプリアイコン
 - 作者: Shake_1227 · X: @shake_1227
 
-Windowsではx64またはARM64のMSI / setup.exeを選んでインストールしてください。macOSではApple SiliconまたはIntelのDMGを開き、Prism RelayをApplicationsへドラッグしてください。
+Windowsではx64またはARM64のMSI / setup.exeを選んでインストールしてください。Windows版の対応するソースは `prism-relay-v1.0.0-windows-source.tar.gz`、Mac版は `prism-relay-v1.0.0-source.tar.gz` に添付しています。
+
+### Macで初めて開くとき
+
+Apple SiliconまたはIntelのDMGを開き、Prism RelayをApplicationsへドラッグしてください。現在のMac版はAppleの公証を受けていないため、初回起動時に「悪質なソフトウェアかどうかをAppleで確認できない」と表示されます。
+
+このGitHubリリースから入手したPrism Relayを開く場合は、次の手順で許可できます。
+
+1. ApplicationsのPrism Relayを開き、警告を閉じます。
+2. **システム設定 → プライバシーとセキュリティ**を開き、下にスクロールします。
+3. Prism Relayの **「このまま開く」** を押します。
+4. 確認画面で **「開く」** を選びます。
+
+許可後は通常どおり起動できます。詳しくは[Appleの案内](https://support.apple.com/ja-jp/102445#openanyway)を参照してください。
 
 Discordには共有コードを貼り付けて送れます。2000文字を超える場合は、`.prism`ファイルの添付が便利です。
 
 対応しているLunar設定は `docs/lunar-schema.md` に記載しています。HUD座標は元の値を引き継ぐため、解像度の違う端末では適用後に位置を確認してください。`optionsof.txt` は検出とバックアップに対応しています。
 
-開発者署名・macOS公証は未取得です。OSの確認画面が出ることがあります。各インストーラーのSHA-256は `SHA256SUMS.txt` で確認できます。
+各インストーラーのSHA-256は `SHA256SUMS.txt` で確認できます。
 
 GPL-3.0-or-later。Lunar Client、Minecraftの非公式ツールです。

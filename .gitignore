@@ -8,6 +8,8 @@ src-tauri/target/
 .DS_Store
 *.log
 coverage/
+__pycache__/
+*.py[cod]
 test-results/
 playwright-report/
 artifacts/

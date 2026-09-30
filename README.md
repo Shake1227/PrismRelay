@@ -33,7 +33,13 @@ Windows は PC の種類に合うインストーラーを実行してくださ�
 
 macOS は DMG を開き、Prism Relay を Applications フォルダへドラッグしてください。
 
-初回リリースは開発者署名・macOS 公証を取得していないため、OS の確認画面が出ることがあります。macOS では起動を試した後、「システム設定 → プライバシーとセキュリティ」で対象アプリを確認できます。署名を導入する際の設定は [docs/signing.md](docs/signing.md) にまとめています。
+Mac 版は Apple の公証を受けていないため、初回に「悪質なソフトウェアかどうかをAppleで確認できない」と表示されます。この GitHub の配布版を起動する場合は、次の手順で許可できます。
+
+1. Applications の Prism Relay を開き、警告を閉じます。
+2. **システム設定 → プライバシーとセキュリティ**を開き、下にスクロールします。
+3. Prism Relay の **「このまま開く」** を押し、次の確認で **「開く」** を選びます。
+
+詳しくは [Apple の案内](https://support.apple.com/ja-jp/102445#openanyway)を参照してください。署名を導入する際の設定は [docs/signing.md](docs/signing.md) にまとめています。
 
 ## 使い方
 
@@ -115,6 +121,10 @@ npm run tauri build
 Windows では MSI とセットアップ EXE、macOS ではアプリと DMG を生成します。GitHub Actions でも4種類の環境でテストとビルドを実行します。
 
 `v1.0.0` のようなタグを Push すると、インストーラー、対応するソース、`SHA256SUMS.txt` を GitHub Releases に公開します。依存ライブラリを更新した際は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
+
+Windows のアプリアイコンは `src-tauri/icons/source-windows.svg` から生成します。SVG を編集した際は `node scripts/generate-windows-icon.mjs` を実行してください。
+
+既存リリースの Windows 配布ファイルを更新する場合は、CI 完了後に「Update Windows release」を手動実行し、その CI の run ID を指定します。対応するソースとチェックサムも更新され、ビルド元は `BUILD_INFO.json` で確認できます。
 
 ビルド成果物、既知のゲーム設定・認証ファイル、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
 

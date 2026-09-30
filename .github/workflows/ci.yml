@@ -22,11 +22,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm ci
       - run: node scripts/check-version.mjs
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - run: python3 -B -m unittest discover -s scripts -p test_update_windows_release.py
       - run: npm run build
       - run: npm audit --omit=dev
   desktop:
@@ -73,6 +77,31 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/smoke-windows.ps1 -Target ${{ matrix.target }}
+      - name: Collect verified Windows installers
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = '${{ matrix.target }}'
+          $platform = switch ($target) {
+            'x86_64-pc-windows-msvc' { 'windows-x64' }
+            'aarch64-pc-windows-msvc' { 'windows-arm64' }
+            default { throw 'Unsupported Windows target' }
+          }
+          $destination = "artifacts/$target"
+          New-Item -ItemType Directory -Path $destination
+          $msi = @(Get-ChildItem "src-tauri/target/$target/release/bundle/msi/*.msi")
+          $setup = @(Get-ChildItem "src-tauri/target/$target/release/bundle/nsis/*-setup.exe")
+          if ($msi.Count -ne 1 -or $setup.Count -ne 1) { throw 'Expected one MSI and one setup executable' }
+          Copy-Item $msi[0].FullName "$destination/prism-relay-$platform.msi"
+          Copy-Item $setup[0].FullName "$destination/prism-relay-$platform-setup.exe"
+      - name: Save verified Windows installers
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers-${{ matrix.target }}
+          path: artifacts/${{ matrix.target }}/*
+          if-no-files-found: error
+          retention-days: 30
       - name: Verify macOS installer contents and signature
         if: runner.os == 'macOS'
         run: bash scripts/smoke-macos.sh '${{ matrix.target }}'

@@ -1,0 +1,58 @@
+name: Update Windows release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful CI run on main containing the Windows installers
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: release-assets-v1.0.0
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate the selected CI run and release
+        id: inspect
+        env:
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+        run: python3 scripts/update-windows-release.py inspect --ci-run-id "$CI_RUN_ID" --state "$RUNNER_TEMP/prism-relay-windows-release"
+      - name: Check out the exact tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.inspect.outputs.source_sha }}
+          path: release-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare updates and back up all existing release assets
+        run: python3 scripts/update-windows-release.py prepare --state "$RUNNER_TEMP/prism-relay-windows-release" --source release-source
+      - name: Preserve the original release assets
+        id: backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-v1.0.0-before-windows-update-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prism-relay-windows-release/backup/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Update the Windows assets with automatic recovery on failure
+        env:
+          BACKUP_ARTIFACT_ID: ${{ steps.backup.outputs.artifact-id }}
+        run: python3 scripts/update-windows-release.py publish --state "$RUNNER_TEMP/prism-relay-windows-release" --backup-artifact-id "$BACKUP_ARTIFACT_ID"
