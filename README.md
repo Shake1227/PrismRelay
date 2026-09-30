@@ -84,7 +84,7 @@ HUD 座標は Lunar に保存された値を引き継ぎます。解像度が異
 
 ## 開発
 
-Node.js 22 以降、Rust 1.90 以降、[Tauri の開発環境](https://v2.tauri.app/start/prerequisites/)を用意してください。
+Node.js 22.12 以降の22系、または24系（推奨）、Rust 1.90 以降、[Tauri の開発環境](https://v2.tauri.app/start/prerequisites/)を用意してください。
 
 ```sh
 npm ci
@@ -113,7 +113,7 @@ Windows では MSI とセットアップ EXE、macOS ではアプリと DMG を�
 
 `v0.1.0` のようなタグを Push すると、インストーラー、対応するソース、`SHA256SUMS.txt` を GitHub Releases に公開します。依存ライブラリを更新した際は `python3 scripts/generate-notices.py` でライセンス通知を更新してください。
 
-ビルド成果物、実際のゲーム設定、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
+ビルド成果物、既知のゲーム設定・認証ファイル、バックアップ、証明書は `.gitignore` の対象です。リポジトリには開発用のソースと合成テストデータを置いています。
 
 ## 作者とライセンス
 

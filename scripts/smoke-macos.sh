@@ -30,10 +30,12 @@ identifier=$(plutil -extract CFBundleIdentifier raw -o - "$app/Contents/Info.pli
 test "$identifier" = 'io.github.shake1227.prismrelay'
 camera_description=$(plutil -extract NSCameraUsageDescription raw -o - "$app/Contents/Info.plist")
 test -n "$camera_description"
+camera_entitlement=$(codesign -d --entitlements - --xml "$app" | plutil -extract 'com\.apple\.security\.device\.camera' raw -o - -)
+test "$camera_entitlement" = 'true'
 case "$target" in
   aarch64-apple-darwin) expected_arch=arm64 ;;
   x86_64-apple-darwin) expected_arch=x86_64 ;;
   *) echo 'Unsupported macOS architecture' >&2; exit 1 ;;
 esac
 test "$(lipo -archs "$app/Contents/MacOS/prism-relay")" = "$expected_arch"
-echo 'macOS installer contains the expected app, architecture, icon, license resources, and valid bundle signature'
+echo 'macOS installer contains the expected app, architecture, icon, license resources, camera entitlement, and valid bundle signature'
