@@ -59,10 +59,34 @@ function Assert-AppStarts([string]$Directory) {
     $app.Refresh()
     if (-not $app.HasExited) {
       $null = $app.CloseMainWindow()
-      if (-not $app.WaitForExit(5000)) { $app.Kill(); $app.WaitForExit() }
+      if (-not $app.WaitForExit(5000)) { $app.Kill($true); $app.WaitForExit() }
     }
     $app.Dispose()
   }
+}
+
+function Wait-AppFileReleased([string]$Directory) {
+  $executable = Join-Path $Directory 'prism-relay.exe'
+  if (-not (Test-Path -LiteralPath $executable)) { return }
+  $deadline = [DateTime]::UtcNow.AddSeconds(30)
+  $lastError = $null
+  do {
+    try {
+      $stream = [System.IO.File]::Open($executable, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+      $stream.Dispose()
+      Write-Output 'Test application exited and its executable is no longer locked'
+      return
+    } catch [System.IO.IOException] {
+      $lastError = $_.Exception.GetBaseException()
+    } catch [System.UnauthorizedAccessException] {
+      $lastError = $_.Exception.GetBaseException()
+    }
+    Start-Sleep -Milliseconds 250
+  } while ([DateTime]::UtcNow -lt $deadline)
+  $owners = @(Get-Process -Name 'prism-relay' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $executable } | Select-Object Id, Path)
+  Write-Output ($owners | Format-Table -AutoSize | Out-String)
+  $result = '{0:X8}' -f $lastError.HResult
+  throw "The test application file is not ready for uninstallation: $executable (HRESULT $result): $($lastError.Message)"
 }
 
 function Assert-AppRemoved([string]$Directory) {
@@ -87,6 +111,7 @@ try {
   Assert-AppStarts $msiDirectory
 } finally {
   if ($msiInstalled) {
+    Wait-AppFileReleased $msiDirectory
     Invoke-Installer 'msiexec.exe' "/x `"$msiPath`" /qn /norestart" 'MSI uninstallation'
     Assert-AppRemoved $msiDirectory
   }
@@ -99,6 +124,7 @@ try {
 } finally {
   $uninstaller = Join-Path $nsisDirectory 'uninstall.exe'
   if (Test-Path $uninstaller) {
+    Wait-AppFileReleased $nsisDirectory
     Invoke-Installer $uninstaller "/S _?=$nsisDirectory" 'Setup uninstallation'
     Assert-AppRemoved $nsisDirectory
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
