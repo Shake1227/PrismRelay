@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "FPS": {"enabled": true, "x": 0.25, "y": -0.4, "futureFeature": {"mode": "preserved"}},
+  "COORDINATES": {"enabled": true, "x": 0.3, "y": 0.5},
+  "KEYSTROKES": {"x": 0.1, "y": 0.2},
+  "WAYPOINTS": {"enabled": true, "markers": []},
+  "SERVER_ADDRESS": {"x": 0.5}
+}

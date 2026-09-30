@@ -1,0 +1,1397 @@
+{
+  "controls:/emoteWheelKeybind": [
+    "keybind"
+  ],
+  "controls:/toggleChat": [
+    "keybind"
+  ],
+  "controls:/toggleChatAlt": [
+    "bool"
+  ],
+  "controls:/toggleChatControl": [
+    "bool"
+  ],
+  "controls:/toggleChatShift": [
+    "bool"
+  ],
+  "general:/achievements": [
+    "bool"
+  ],
+  "general:/backgroundColor/chroma": [
+    "bool"
+  ],
+  "general:/backgroundColor/value": [
+    "number"
+  ],
+  "general:/chatHeight": [
+    "bool"
+  ],
+  "general:/mainMenuMuted": [
+    "bool"
+  ],
+  "general:/nametag": [
+    "bool"
+  ],
+  "general:/redString": [
+    "bool"
+  ],
+  "general:/showInF5": [
+    "bool"
+  ],
+  "general:/stackMessages": [
+    "bool"
+  ],
+  "general:/transparentBackground": [
+    "bool"
+  ],
+  "general:/variableZoom": [
+    "bool"
+  ],
+  "mods:/3D_SKINS/enabled": [
+    "bool"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_BOOTS_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_BOOTS_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_CHESTPLATE_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_CHESTPLATE_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_HELMET_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_HELMET_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_LEGGINGS_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_LEGGINGS_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_OFF_HAND_HELD_ITEM_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_OFF_HAND_HELD_ITEM_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_PROTECTION_CHILD/position": [
+    "position"
+  ],
+  "mods:/ARMORSTATUS/ARMORSTATUS_PROTECTION_CHILD/y": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/options/armorDamage": [
+    "bool"
+  ],
+  "mods:/ARMORSTATUS/options/itemDamage": [
+    "bool"
+  ],
+  "mods:/ARMORSTATUS/x": [
+    "number"
+  ],
+  "mods:/ARMORSTATUS/y": [
+    "number"
+  ],
+  "mods:/AUDIO_SUBTITLES/position": [
+    "position"
+  ],
+  "mods:/AUDIO_SUBTITLES/y": [
+    "number"
+  ],
+  "mods:/BLOCK_OUTLINE/enabled": [
+    "bool"
+  ],
+  "mods:/BLOCK_OUTLINE/options/blockOutlineColor/chroma": [
+    "bool"
+  ],
+  "mods:/BLOCK_OUTLINE/options/blockOutlineColor/value": [
+    "number"
+  ],
+  "mods:/BLOCK_OUTLINE/options/blockOutlineWidth": [
+    "numericString"
+  ],
+  "mods:/BLOCK_OUTLINE/options/blockOverlay": [
+    "bool"
+  ],
+  "mods:/BOSSBAR/position": [
+    "position"
+  ],
+  "mods:/BOSSBAR/x": [
+    "number"
+  ],
+  "mods:/BOSSBAR/y": [
+    "number"
+  ],
+  "mods:/CHAT/options/copyChat": [
+    "bool"
+  ],
+  "mods:/CHAT/options/stackMessages": [
+    "bool"
+  ],
+  "mods:/CHAT/options/timeBasedStackMessagesTimeframe": [
+    "numericString"
+  ],
+  "mods:/CLOCK/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/CLOCK/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/CLOCK/position": [
+    "position"
+  ],
+  "mods:/CLOCK/x": [
+    "number"
+  ],
+  "mods:/CLOCK/y": [
+    "number"
+  ],
+  "mods:/COMBO/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/COMBO/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/COMBO/options/backgroundHeight": [
+    "numericString"
+  ],
+  "mods:/COMBO/position": [
+    "position"
+  ],
+  "mods:/COMBO/x": [
+    "number"
+  ],
+  "mods:/COMBO/y": [
+    "number"
+  ],
+  "mods:/COOLDOWNS/enabled": [
+    "bool"
+  ],
+  "mods:/COOLDOWNS/position": [
+    "position"
+  ],
+  "mods:/COOLDOWNS/x": [
+    "number"
+  ],
+  "mods:/COOLDOWNS/y": [
+    "number"
+  ],
+  "mods:/COORDINATES/enabled": [
+    "bool"
+  ],
+  "mods:/COORDINATES/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/COORDINATES/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/COORDINATES/options/showAxisLabels": [
+    "bool"
+  ],
+  "mods:/COORDINATES/options/showC": [
+    "bool"
+  ],
+  "mods:/COORDINATES/options/showDirection": [
+    "bool"
+  ],
+  "mods:/COORDINATES/position": [
+    "position"
+  ],
+  "mods:/COORDINATES/x": [
+    "number"
+  ],
+  "mods:/COORDINATES/y": [
+    "number"
+  ],
+  "mods:/CPS/enabled": [
+    "bool"
+  ],
+  "mods:/CPS/options/background": [
+    "bool"
+  ],
+  "mods:/CPS/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/CPS/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/CPS/options/lineColor/value": [
+    "number"
+  ],
+  "mods:/CPS/options/rightClick": [
+    "bool"
+  ],
+  "mods:/CPS/position": [
+    "position"
+  ],
+  "mods:/CPS/x": [
+    "number"
+  ],
+  "mods:/CPS/y": [
+    "number"
+  ],
+  "mods:/CROSSHAIR/CROSSHAIR_ENEMY/options/gridSize": [
+    "numericString"
+  ],
+  "mods:/CROSSHAIR/CROSSHAIR_FRIENDLY/options/gridSize": [
+    "numericString"
+  ],
+  "mods:/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize": [
+    "numericString"
+  ],
+  "mods:/CROSSHAIR/options/crosshairGap": [
+    "numericString"
+  ],
+  "mods:/CROSSHAIR/options/crosshairOutline": [
+    "bool"
+  ],
+  "mods:/CROSSHAIR/options/crosshairSize": [
+    "numericString"
+  ],
+  "mods:/CROSSHAIR/options/help_box_open": [
+    "bool"
+  ],
+  "mods:/DIRECTION_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/DIRECTION_HUD/options/useLegacyStyle": [
+    "bool"
+  ],
+  "mods:/DIRECTION_HUD/position": [
+    "position"
+  ],
+  "mods:/DIRECTION_HUD/x": [
+    "number"
+  ],
+  "mods:/DIRECTION_HUD/y": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_game_info/options/background": [
+    "bool"
+  ],
+  "mods:/F3_DISPLAY/default_game_info/options/labelColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_game_info/options/valueColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/options/background": [
+    "bool"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/options/labelColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/options/scale": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/options/valueColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/position": [
+    "position"
+  ],
+  "mods:/F3_DISPLAY/default_pie_chart/y": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_player_info/options/background": [
+    "bool"
+  ],
+  "mods:/F3_DISPLAY/default_player_info/options/labelColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_player_info/options/valueColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_player_info/position": [
+    "position"
+  ],
+  "mods:/F3_DISPLAY/default_player_info/y": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_target_info/options/background": [
+    "bool"
+  ],
+  "mods:/F3_DISPLAY/default_target_info/options/labelColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_target_info/options/valueColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_target_info/position": [
+    "position"
+  ],
+  "mods:/F3_DISPLAY/default_target_info/y": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_world_info/options/background": [
+    "bool"
+  ],
+  "mods:/F3_DISPLAY/default_world_info/options/labelColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_world_info/options/valueColor/value": [
+    "number"
+  ],
+  "mods:/F3_DISPLAY/default_world_info/position": [
+    "position"
+  ],
+  "mods:/F3_DISPLAY/default_world_info/y": [
+    "number"
+  ],
+  "mods:/FOG/enabled": [
+    "bool"
+  ],
+  "mods:/FOG/options/renderDistanceFogColorToggle": [
+    "bool"
+  ],
+  "mods:/FOG/options/renderDistanceFogDensity": [
+    "numericString"
+  ],
+  "mods:/FOG/options/waterFogDensity": [
+    "numericString"
+  ],
+  "mods:/FPS/enabled": [
+    "bool"
+  ],
+  "mods:/FPS/options/background": [
+    "bool"
+  ],
+  "mods:/FPS/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/FPS/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/FPS/position": [
+    "position"
+  ],
+  "mods:/FPS/x": [
+    "number"
+  ],
+  "mods:/FPS/y": [
+    "number"
+  ],
+  "mods:/HEIGHT_LIMIT/enabled": [
+    "bool"
+  ],
+  "mods:/HURT_CAM/enabled": [
+    "bool"
+  ],
+  "mods:/HURT_CAM/options/disableHurtCam": [
+    "bool"
+  ],
+  "mods:/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_HEIGHT_LIMIT_CHILD/position": [
+    "position"
+  ],
+  "mods:/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_HEIGHT_LIMIT_CHILD/y": [
+    "number"
+  ],
+  "mods:/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_RESOURCE_COUNTER_CHILD/position": [
+    "position"
+  ],
+  "mods:/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_RESOURCE_COUNTER_CHILD/x": [
+    "number"
+  ],
+  "mods:/HYPIXEL_MOD/HYPIXEL_TPS/enabled": [
+    "bool"
+  ],
+  "mods:/HYPIXEL_MOD/HYPIXEL_TPS/options/background": [
+    "bool"
+  ],
+  "mods:/HYPIXEL_MOD/HYPIXEL_TPS/position": [
+    "position"
+  ],
+  "mods:/HYPIXEL_MOD/HYPIXEL_TPS/x": [
+    "number"
+  ],
+  "mods:/HYPIXEL_MOD/HYPIXEL_TPS/y": [
+    "number"
+  ],
+  "mods:/HYPIXEL_MOD/options/levelHead": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybind": [
+    "keybind"
+  ],
+  "mods:/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindAlt": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindControl": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindShift": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/SLOT_BINDING/options/slotBindingLockBound": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/enabled": [
+    "bool"
+  ],
+  "mods:/INVENTORY_MOD/options/dontResetCursorInventory": [
+    "bool"
+  ],
+  "mods:/ITEM_COUNTER/position": [
+    "position"
+  ],
+  "mods:/ITEM_COUNTER/x": [
+    "number"
+  ],
+  "mods:/ITEM_COUNTER/y": [
+    "number"
+  ],
+  "mods:/ITEM_TRACKER/options/skyblockOnly": [
+    "bool"
+  ],
+  "mods:/ITEM_TRACKER/options/textShadow": [
+    "bool"
+  ],
+  "mods:/ITEM_TRACKER/position": [
+    "position"
+  ],
+  "mods:/ITEM_TRACKER/x": [
+    "number"
+  ],
+  "mods:/ITEM_TRACKER/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_A/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_A/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_A/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_D/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_D/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_D/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_S/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_S/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_S/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_SPACE/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_SPACE/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_SPACE/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_W/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_W/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/KEYSTROKE_KEY_W/y": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/enabled": [
+    "bool"
+  ],
+  "mods:/KEYSTROKES/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/KEYSTROKES/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/options/backgroundPressedColor/value": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/options/textShadow": [
+    "bool"
+  ],
+  "mods:/KEYSTROKES/position": [
+    "position"
+  ],
+  "mods:/KEYSTROKES/x": [
+    "number"
+  ],
+  "mods:/KEYSTROKES/y": [
+    "number"
+  ],
+  "mods:/LIGHT_OVERLAY/enabledToggle": [
+    "bool"
+  ],
+  "mods:/MEMORY/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/MEMORY/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/MEMORY/position": [
+    "position"
+  ],
+  "mods:/MEMORY/x": [
+    "number"
+  ],
+  "mods:/MEMORY/y": [
+    "number"
+  ],
+  "mods:/MOMENTUM/position": [
+    "position"
+  ],
+  "mods:/MOMENTUM/x": [
+    "number"
+  ],
+  "mods:/MOMENTUM/y": [
+    "number"
+  ],
+  "mods:/MUMBLE_LINK/enabled": [
+    "bool"
+  ],
+  "mods:/ONE_SEVEN_VISUALS/ONE_SEVEN_ANIMATIONS_LEGACY/enabled": [
+    "bool"
+  ],
+  "mods:/ONE_SEVEN_VISUALS/ONE_SEVEN_ITEMS_LEGACY/enabled": [
+    "bool"
+  ],
+  "mods:/ONE_SEVEN_VISUALS/enabled": [
+    "bool"
+  ],
+  "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_BLOCK_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_BLOCK_CHILD/options/hideParticle": [
+    "bool"
+  ],
+  "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/options/hideParticle": [
+    "bool"
+  ],
+  "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/options/scale": [
+    "numericString"
+  ],
+  "mods:/PARTICLE_CHANGER/enabled": [
+    "bool"
+  ],
+  "mods:/PING/PING_HUD/options/background": [
+    "bool"
+  ],
+  "mods:/PING/PING_HUD/position": [
+    "position"
+  ],
+  "mods:/PING/PING_HUD/x": [
+    "number"
+  ],
+  "mods:/PING/PING_HUD/y": [
+    "number"
+  ],
+  "mods:/PING/enabled": [
+    "bool"
+  ],
+  "mods:/PING/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/PING/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/PING/x": [
+    "number"
+  ],
+  "mods:/PING/y": [
+    "number"
+  ],
+  "mods:/PLAYTIME/position": [
+    "position"
+  ],
+  "mods:/PLAYTIME/x": [
+    "number"
+  ],
+  "mods:/PLAYTIME/y": [
+    "number"
+  ],
+  "mods:/POTION_EFFECTS/options/background": [
+    "bool"
+  ],
+  "mods:/POTION_EFFECTS/options/excludePerm": [
+    "bool"
+  ],
+  "mods:/POTION_EFFECTS/position": [
+    "position"
+  ],
+  "mods:/POTION_EFFECTS/x": [
+    "number"
+  ],
+  "mods:/POTION_EFFECTS/y": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_HEALTH_CHILD/position": [
+    "position"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_HEALTH_CHILD/x": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_HEALTH_CHILD/y": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_MELEE_CHILD/position": [
+    "position"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_MELEE_CHILD/x": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_MELEE_CHILD/y": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/position": [
+    "position"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/x": [
+    "number"
+  ],
+  "mods:/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/y": [
+    "number"
+  ],
+  "mods:/QUICKPLAY/enabled": [
+    "bool"
+  ],
+  "mods:/QUICKPLAY/options/quickplayUIKeybind": [
+    "keybind"
+  ],
+  "mods:/QUICKPLAY/options/quickplayUIKeybindAlt": [
+    "bool"
+  ],
+  "mods:/QUICKPLAY/options/quickplayUIKeybindControl": [
+    "bool"
+  ],
+  "mods:/QUICKPLAY/options/quickplayUIKeybindShift": [
+    "bool"
+  ],
+  "mods:/RADIO/enabled": [
+    "bool"
+  ],
+  "mods:/REACH_DISPLAY/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/REACH_DISPLAY/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/REACH_DISPLAY/position": [
+    "position"
+  ],
+  "mods:/REACH_DISPLAY/x": [
+    "number"
+  ],
+  "mods:/REACH_DISPLAY/y": [
+    "number"
+  ],
+  "mods:/REWIND/REWIND_RECORDING_INDICATOR_CHILD/position": [
+    "position"
+  ],
+  "mods:/REWIND/REWIND_RECORDING_INDICATOR_CHILD/x": [
+    "number"
+  ],
+  "mods:/REWIND/REWIND_RECORDING_INDICATOR_CHILD/y": [
+    "number"
+  ],
+  "mods:/SATURATION/SATURATION_HUD_CHILD/position": [
+    "position"
+  ],
+  "mods:/SATURATION/SATURATION_HUD_CHILD/x": [
+    "number"
+  ],
+  "mods:/SATURATION/SATURATION_HUD_CHILD/y": [
+    "number"
+  ],
+  "mods:/SATURATION/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_BAIT_LIST_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_BAIT_LIST_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_BONE_DISPLAY_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_BONE_DISPLAY_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DARK_AUCTION_TIMER_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_DARK_AUCTION_TIMER_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DARK_AUCTION_TIMER_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DEFENSE_ICON_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_DEFENSE_ICON_CHILD/position": [
+    "position"
+  ],
+  "mods:/SBA/SBA_DEFENSE_ICON_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DEFENSE_ICON_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DEFENSE_TEXT_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_DEFENSE_TEXT_CHILD/position": [
+    "position"
+  ],
+  "mods:/SBA/SBA_DEFENSE_TEXT_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_DEFENSE_TEXT_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_FEATURE_WARNING_CHILD/position": [
+    "position"
+  ],
+  "mods:/SBA/SBA_FEATURE_WARNING_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_FEATURE_WARNING_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_HEALTH_BAR_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_HEALTH_BAR_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_HEALTH_BAR_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_HEALTH_TEXT_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_HEALTH_TEXT_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_HEALTH_TEXT_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_MANA_BAR_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_MANA_BAR_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_MANA_BAR_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_MANA_TEXT_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_MANA_TEXT_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_MANA_TEXT_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_POWER_ORB_STATUS_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_POWER_ORB_STATUS_CHILD/options/scale": [
+    "numericString"
+  ],
+  "mods:/SBA/SBA_POWER_ORB_STATUS_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_POWER_ORB_STATUS_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SKILL_DISPLAY_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_SKILL_DISPLAY_CHILD/options/textColor/value": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SKILL_DISPLAY_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SPEED_TEXT_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SPEED_TEXT_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SUMMONING_EYE_COUNTER_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_SUMMONING_EYE_COUNTER_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/x": [
+    "number"
+  ],
+  "mods:/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/y": [
+    "number"
+  ],
+  "mods:/SBA/options/avoidPlacingEnchantItems": [
+    "bool"
+  ],
+  "mods:/SBA/options/backpackPreviewAh": [
+    "bool"
+  ],
+  "mods:/SBA/options/hideHealthBar": [
+    "bool"
+  ],
+  "mods:/SBA/options/hidePlayersNearNPC": [
+    "bool"
+  ],
+  "mods:/SBA/options/ignoreItemFrameClicks": [
+    "bool"
+  ],
+  "mods:/SBA/options/showBackpackHoldingShift": [
+    "bool"
+  ],
+  "mods:/SBA/options/warpAdvancedMode": [
+    "bool"
+  ],
+  "mods:/SBA/skyblockAddonsMagmaTimer/enabled": [
+    "bool"
+  ],
+  "mods:/SBA/skyblockAddonsMagmaTimer/options/showOnOtherGames": [
+    "bool"
+  ],
+  "mods:/SBA/skyblockAddonsMagmaTimer/position": [
+    "position"
+  ],
+  "mods:/SBA/skyblockAddonsMagmaTimer/x": [
+    "number"
+  ],
+  "mods:/SBA/skyblockAddonsMagmaTimer/y": [
+    "number"
+  ],
+  "mods:/SCOREBOARD/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/SCOREBOARD/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/SCROLLABLE_TOOLTIPS/enabled": [
+    "bool"
+  ],
+  "mods:/SHINY_POTS/options/coloredPotions": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/BETTERMAP_PRIMARY/options/primaryBetterMapCurrentRoomInfoScale": [
+    "numericString"
+  ],
+  "mods:/SKYBLOCK/BETTERMAP_PRIMARY/options/scale": [
+    "numericString"
+  ],
+  "mods:/SKYBLOCK/BETTERMAP_PRIMARY/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/BETTERMAP_PRIMARY/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/BETTERMAP_PRIMARY/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CHOCOLATE_FACTORY/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CROESUS_CHESTS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/options/scale": [
+    "numericString"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DAMAGE_SPLASH/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DEF_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DEF_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DEF_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DEF_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/options/batHitbox": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/options/batHitboxColor/value": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_BLOOD_CAMP_HELPER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_HIGHLIGHT_DOORS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_PUZZLES/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_SCORE_ALERT/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/options/scale": [
+    "numericString"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_EXPERIMENT_SOLVERS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_FARMING_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_FARMING_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_FARMING_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_FISHING_MARKER/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_GLACITE_COMMISSIONS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_GLACITE_COMMISSIONS/options/skipPositionKeyBind": [
+    "keybind"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HEALTH_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HEALTH_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HEALTH_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HEALTH_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HIGHLIGHT_SPIRIT_BOW/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_HOPPITY_EGG_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA/options/kuudraAlerts": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LIVID_SOLVER_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybind": [
+    "keybind"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindAlt": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindControl": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindShift": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_MANA_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_MANA_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_MANA_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_MANA_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_POWDER_TRACKER_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_SPEED_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_SPEED_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_SPEED_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_TERMINAL_SOLVERS/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_TERMINAL_SOLVERS/options/blockWrongTerminalClicks": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_HUD/y": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowBits": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowCopperDye": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowDedicationFour": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowFloweringBouquet": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowGreenBandana": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowMusicRune": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowOvergrownGrass": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowSpaceHelmet": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/position": [
+    "position"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/x": [
+    "number"
+  ],
+  "mods:/SKYBLOCK/SKYBLOCK_WHISPER_TRACKER_HUD/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/SPIRIT_LEAP_OVERLAY/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/STARRED_MOB_HIGHLIGHT/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/TIERS_AS_STACK_SIZE/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/TIERS_AS_STACK_SIZE/options/itemStarsAsStack": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/TIERS_AS_STACK_SIZE/options/minionLevelAsStack": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/TIERS_AS_STACK_SIZE/options/potionLevelAsStack": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/enabled": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/fixLavaBobber": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/griffinBurrowEstimates": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/hideMidasStaff": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/highlightEndNodes": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/highlightGlowingMushrooms": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/onlyMoversOnSkyblock": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/showGiantHPAtFeet": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/showKuudraHealth": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockFinishedCommissions": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockMetalDetector": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockMiddleClickItems": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockOpenCommandsUIAlt": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockOpenCommandsUIControl": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockOpenCommandsUIShift": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyBlockWishingCompass": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyblockFishingHidePlayers": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/skyblockFishingHotspotLocator": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/slayerBossTimer": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/slayerMiniBossAlert": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/vampireIchorDisplay": [
+    "bool"
+  ],
+  "mods:/SKYBLOCK/options/vampireSteakDisplay": [
+    "bool"
+  ],
+  "mods:/STOPWATCH/options/backgroundColor/chroma": [
+    "bool"
+  ],
+  "mods:/STOPWATCH/options/backgroundColor/value": [
+    "number"
+  ],
+  "mods:/STOPWATCH/position": [
+    "position"
+  ],
+  "mods:/STOPWATCH/x": [
+    "number"
+  ],
+  "mods:/STOPWATCH/y": [
+    "number"
+  ],
+  "mods:/TIME_CHANGER/enabled": [
+    "bool"
+  ],
+  "mods:/TIME_CHANGER/options/horizonYLevel": [
+    "numericString"
+  ],
+  "mods:/TIME_CHANGER/options/timeChangerTime": [
+    "numericString"
+  ],
+  "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/options/iconMode": [
+    "bool"
+  ],
+  "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/position": [
+    "position"
+  ],
+  "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/x": [
+    "number"
+  ],
+  "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/y": [
+    "number"
+  ],
+  "mods:/TOGGLE_SNEAK/options/flyBoostAmount": [
+    "numericString"
+  ],
+  "mods:/TOGGLE_SNEAK/position": [
+    "position"
+  ],
+  "mods:/TOGGLE_SNEAK/y": [
+    "number"
+  ],
+  "mods:/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/position": [
+    "position"
+  ],
+  "mods:/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/x": [
+    "number"
+  ],
+  "mods:/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/y": [
+    "number"
+  ],
+  "mods:/UHC_OVERLAY/enabled": [
+    "bool"
+  ],
+  "mods:/UHC_OVERLAY/options/goldAppleScale": [
+    "numericString"
+  ],
+  "mods:/UHC_OVERLAY/options/goldIngotScale": [
+    "numericString"
+  ],
+  "mods:/UHC_OVERLAY/options/goldNuggetScale": [
+    "numericString"
+  ],
+  "mods:/UHC_OVERLAY/options/goldOreScale": [
+    "numericString"
+  ],
+  "mods:/UHC_OVERLAY/options/skullScale": [
+    "numericString"
+  ],
+  "mods:/WORLDEDIT_CUI/options/positionOneColor/value": [
+    "number"
+  ],
+  "mods:/WORLDEDIT_CUI/options/positionTwoColor/value": [
+    "number"
+  ],
+  "mods:/ZOOM/options/zoomKeybind": [
+    "keybind"
+  ]
+}

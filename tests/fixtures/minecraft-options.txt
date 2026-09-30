@@ -1,0 +1,9 @@
+version:3955
+fov:0.5
+mouseSensitivity:0.42
+guiScale:3
+renderDistance:12
+soundCategory_master:0.8
+key_key.forward:key.keyboard.w
+resourcePacks:["vanilla","file/Example.zip"]
+futureFeature:preserved:raw
