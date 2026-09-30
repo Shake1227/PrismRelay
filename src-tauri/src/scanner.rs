@@ -441,6 +441,31 @@ mod tests {
     }
 
     #[test]
+    fn explicit_unicode_root_reports_native_canonical_file_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
+        let minecraft = root.join("プレイヤー Settings");
+        fs::create_dir(&minecraft).unwrap();
+        let path = minecraft.join("options.txt");
+        fs::write(&path, "fov:0.5\r\nguiScale:2\r\n").unwrap();
+        let report = scan(ScanRequest {
+            minecraft_root: Some(minecraft.to_string_lossy().into()),
+            lunar_root: Some(root.join("absent").to_string_lossy().into()),
+        })
+        .unwrap();
+        assert_eq!(report.files.len(), 1);
+        assert_eq!(
+            PathBuf::from(&report.files[0].path),
+            dunce::canonicalize(&path).unwrap()
+        );
+        assert_eq!(
+            crate::backup::read_config(Path::new(&report.files[0].path)).unwrap(),
+            b"fov:0.5\r\nguiScale:2\r\n"
+        );
+        assert_eq!(report.settings.len(), 2);
+    }
+
+    #[test]
     fn synthetic_roots_are_read_only_and_secrets_are_ignored() {
         let temporary = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(temporary.path()).unwrap();
