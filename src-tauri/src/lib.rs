@@ -1,9 +1,11 @@
 pub mod backup;
 pub mod codec;
+mod icons;
 pub mod importer;
 pub mod lunar;
 pub mod minecraft;
 pub mod model;
+mod qr;
 pub mod safety;
 pub mod scanner;
 mod updates;
@@ -226,6 +228,7 @@ fn open_project_page(page: String) -> Result<(), String> {
         "repository" => "https://github.com/SHake1227/prism-relay",
         "releases" => "https://github.com/SHake1227/prism-relay/releases",
         "license" => "https://github.com/SHake1227/prism-relay/blob/main/LICENSE",
+        "x" => "https://x.com/shake_1227",
         _ => return Err("このリンクは開けません。".into()),
     };
     open_target(std::ffi::OsStr::new(url))
@@ -255,6 +258,16 @@ fn get_app_info() -> AppInfo {
 #[tauri::command]
 async fn check_updates() -> Result<updates::UpdateInfo, String> {
     blocking(updates::check).await
+}
+
+#[tauri::command]
+async fn load_qr_image(path: String) -> Result<String, String> {
+    blocking(move || qr::load_image(&PathBuf::from(path))).await
+}
+
+#[tauri::command]
+async fn save_qr_image(path: String, data_url: String) -> Result<(), String> {
+    blocking(move || qr::save_image(&PathBuf::from(path), &data_url)).await
 }
 
 #[tauri::command]
@@ -290,6 +303,7 @@ fn load_share_file(path: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .on_permission_request(|_, _| tauri::webview::PermissionResponse::Default)
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let root = app.path().app_data_dir()?.join("backups");
@@ -313,7 +327,9 @@ pub fn run() {
             get_app_info,
             check_updates,
             save_share_file,
-            load_share_file
+            load_share_file,
+            load_qr_image,
+            save_qr_image
         ])
         .run(tauri::generate_context!())
         .expect("Prism Relay could not start");

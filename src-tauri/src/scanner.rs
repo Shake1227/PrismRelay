@@ -67,6 +67,7 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
     let minecraft_roots = roots(request.minecraft_root.as_deref(), default_minecraft)?;
     let lunar_roots = roots(request.lunar_root.as_deref(), default_lunar)?;
     let mut report = ScanReport {
+        application_icons: crate::icons::detect_application_icons(&platform, &home),
         platform,
         ..Default::default()
     };

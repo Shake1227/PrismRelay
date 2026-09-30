@@ -62,7 +62,7 @@ pub fn checksum(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-pub fn read_config(path: &Path) -> Result<Vec<u8>, String> {
+fn verified_config_path(path: &Path) -> Result<PathBuf, String> {
     let metadata =
         fs::symlink_metadata(path).map_err(|_| "設定ファイルを読み取れません。".to_string())?;
     if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_FILE_SIZE {
@@ -88,8 +88,13 @@ pub fn read_config(path: &Path) -> Result<Vec<u8>, String> {
             return Err("リンクを経由する設定ファイルは変更できません。".into());
         }
     }
+    Ok(canonical)
+}
+
+pub fn read_config(path: &Path) -> Result<Vec<u8>, String> {
+    let path = verified_config_path(path)?;
     let mut bytes = Vec::new();
-    File::open(path)
+    File::open(&path)
         .and_then(|f| f.take(MAX_FILE_SIZE + 1).read_to_end(&mut bytes))
         .map_err(|_| "設定ファイルを読み取れません。".to_string())?;
     if bytes.len() as u64 > MAX_FILE_SIZE {
@@ -245,18 +250,22 @@ impl BackupStore {
         fs::create_dir(&directory).map_err(|e| e.to_string())?;
         private_permissions(&directory, true)?;
         let mut files = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         for (index, path) in paths.iter().enumerate() {
-            if !report.files.iter().any(|f| Path::new(&f.path) == path) {
-                return Err("検証されていない設定は保存できません。".into());
+            let canonical = verified_config_path(path)?;
+            if !report.files.iter().any(|f| Path::new(&f.path) == canonical)
+                || !seen.insert(canonical.clone())
+            {
+                return Err("検証されていない設定または重複した設定は保存できません。".into());
             }
-            let bytes = read_config(path)?;
+            let bytes = read_config(&canonical)?;
             let relative_name = format!("{index:04}.snapshot");
             let snapshot = directory.join(&relative_name);
             atomic_write(&snapshot, &bytes)?;
             private_permissions(&snapshot, false)?;
             files.push(BackupFile {
                 relative_name,
-                original_path: path.to_string_lossy().into_owned(),
+                original_path: canonical.to_string_lossy().into_owned(),
                 checksum: checksum(&bytes),
                 size: bytes.len() as u64,
             });
@@ -295,17 +304,18 @@ impl BackupStore {
             {
                 return Err("バックアップのファイル名が無効です。".into());
             }
-            if !report.files.iter().any(|f| f.path == file.original_path)
-                || !seen.insert(file.original_path.clone())
+            let original = PathBuf::from(&file.original_path);
+            let path = verified_config_path(&original)?;
+            if !report.files.iter().any(|f| Path::new(&f.path) == path)
+                || !seen.insert(path.clone())
             {
                 return Err("復元先を検出できません。設定フォルダを確認してください。".into());
             }
+            let expected = read_config(&path)?;
             let contents = read_config(&directory.join(&file.relative_name))?;
             if contents.len() as u64 != file.size || checksum(&contents) != file.checksum {
                 return Err("バックアップのチェックサムが一致しません。".into());
             }
-            let path = PathBuf::from(&file.original_path);
-            let expected = read_config(&path)?;
             updates.push(FileUpdate {
                 path,
                 expected,
@@ -337,8 +347,9 @@ impl BackupStore {
             backup_id: manifest.id.clone(),
             files: updates
                 .iter()
-                .map(|u| TransactionFile {
-                    original_path: u.path.to_string_lossy().into_owned(),
+                .zip(&manifest.files)
+                .map(|(u, saved)| TransactionFile {
+                    original_path: saved.original_path.clone(),
                     before_checksum: checksum(&u.expected),
                     after_checksum: checksum(&u.contents),
                 })
@@ -616,6 +627,68 @@ mod tests {
             .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].file_name(), "options.txt");
+    }
+
+    #[test]
+    fn backup_paths_remain_canonical_across_saved_manifests_and_restore() {
+        let fixture = RecoveryFixture::new();
+        let _lock = fixture.store.lock().unwrap();
+        let mut paths = fixture.paths.clone();
+        #[cfg(windows)]
+        for path in &mut paths {
+            *path = PathBuf::from(path.to_string_lossy().replace('\\', "/"));
+        }
+        #[cfg(not(windows))]
+        let _ = &mut paths;
+        let manifest = fixture
+            .store
+            .snapshot(&fixture.report, &fixture.request, "manual", &paths)
+            .unwrap();
+        for (saved, original) in manifest.files.iter().zip(&paths) {
+            assert_eq!(
+                saved.original_path,
+                dunce::canonicalize(original).unwrap().to_string_lossy()
+            );
+        }
+        let mut saved = fixture.store.load(&manifest.id).unwrap();
+        #[cfg(windows)]
+        for file in &mut saved.files {
+            file.original_path = file.original_path.replace('\\', "/");
+        }
+        #[cfg(not(windows))]
+        let _ = &mut saved;
+        let report = crate::scanner::scan(fixture.request.clone()).unwrap();
+        let updates = fixture.store.verify(&saved, &report).unwrap();
+        assert_eq!(updates.len(), 2);
+        assert!(updates
+            .iter()
+            .all(|update| update.path == dunce::canonicalize(&update.path).unwrap()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restore_canonicalization_still_rejects_links_to_approved_files() {
+        let (_directory, store, report, path) = fixture();
+        let _lock = store.lock().unwrap();
+        let mut manifest = store
+            .snapshot(
+                &report,
+                &ScanRequest::default(),
+                "manual",
+                std::slice::from_ref(&path),
+            )
+            .unwrap();
+        let linked = path.parent().unwrap().join("linked-options.txt");
+        std::os::unix::fs::symlink(&path, &linked).unwrap();
+        manifest.files[0].original_path = linked.to_string_lossy().into();
+        assert!(store.verify(&manifest, &report).is_err());
+        assert!(store
+            .snapshot(&report, &ScanRequest::default(), "manual", &[linked])
+            .is_err());
+        assert_eq!(
+            read_config(&path).unwrap(),
+            b"fov:0.5\nunknownKey:preserved\n"
+        );
     }
 
     #[test]

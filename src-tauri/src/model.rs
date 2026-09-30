@@ -34,6 +34,15 @@ pub struct ScanRequest {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ApplicationIcons {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minecraft: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lunar: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanReport {
     pub settings: Vec<Setting>,
     pub files: Vec<ScanFile>,
@@ -44,6 +53,8 @@ pub struct ScanReport {
     pub warnings: Vec<String>,
     pub platform: String,
     pub running_processes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub application_icons: Option<ApplicationIcons>,
 }
 
 pub fn setting_id(source: &str, profile: &str, file_kind: &str, pointer: &str) -> String {
