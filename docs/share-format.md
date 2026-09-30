@@ -69,7 +69,7 @@ The prefix selects the decoder and the payload must contain the matching version
 
 IDs are regenerated with SHA-256 over four UTF-8 components: source, file kind, anonymous profile, and full pointer. Each component is preceded by its byte length as an unsigned 32-bit little-endian integer. Import maps approved pointers to an explicitly selected local target profile; shared profiles never become filesystem paths.
 
-The application version is a bounded version string starting with a digit. Game versions contain two to four numeric components or a Minecraft snapshot identifier such as `24w14a`. Local version-directory suffixes are removed during export so custom profile names do not enter metadata.
+The application version is a bounded version string starting with a digit. Game versions contain one to four numeric components (for example `26` or `1.21.4`), or a Minecraft snapshot identifier such as `24w14a`. Local version-directory suffixes are removed during export so custom profile names do not enter metadata.
 
 ## Limits and privacy
 

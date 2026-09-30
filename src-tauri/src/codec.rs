@@ -1496,7 +1496,7 @@ fn valid_game_version(version: &str) -> bool {
         return false;
     }
     let parts: Vec<&str> = version.split('.').collect();
-    if (2..=4).contains(&parts.len())
+    if (1..=4).contains(&parts.len())
         && parts.iter().all(|part| {
             !part.is_empty() && part.len() <= 4 && part.bytes().all(|byte| byte.is_ascii_digit())
         })
@@ -1989,5 +1989,32 @@ mod tests {
         assert!(decode(&compact_code(&dictionary)).is_err());
         dictionary.groups[0].settings[0].dictionary = Some(u16::MAX);
         assert!(decode(&compact_code(&dictionary)).is_err());
+    }
+
+    #[test]
+    fn single_component_year_versions_roundtrip_without_local_profile_suffixes() {
+        for version in ["26", "26.1", "1.21.4", "24w14a"] {
+            let mut metadata = metadata();
+            metadata.minecraft_version = Some(version.to_string());
+            let decoded = decode(&encode(vec![fixture()], metadata).unwrap().code).unwrap();
+            assert_eq!(decoded.metadata.minecraft_version.as_deref(), Some(version));
+        }
+        let mut metadata = metadata();
+        metadata.minecraft_version = Some("26-PrivateProfileName".to_string());
+        let decoded = decode(&encode(vec![fixture()], metadata).unwrap().code).unwrap();
+        assert_eq!(decoded.metadata.minecraft_version.as_deref(), Some("26"));
+        assert!(!serde_json::to_string(&decoded)
+            .unwrap()
+            .contains("PrivateProfileName"));
+        for version in [
+            "12345",
+            "26/private-name",
+            "26.1.PrivateProfileName",
+            "26-PrivateProfileName",
+        ] {
+            let mut forged = decoded.clone();
+            forged.metadata.minecraft_version = Some(version.to_string());
+            assert!(decode(&encode_envelope(&forged).unwrap().code).is_err());
+        }
     }
 }
