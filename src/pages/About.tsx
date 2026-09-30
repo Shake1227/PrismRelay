@@ -50,7 +50,6 @@ export function About({
     <div className="about-page">
       <section className="glass-panel about-brand">
         <PrismMark className="about-prism" />
-        <span className="eyebrow">{t("MINECRAFT SETTINGS SHARING")}</span>
         <h2>
           Prism Relay<span>v{info.version}</span>
         </h2>

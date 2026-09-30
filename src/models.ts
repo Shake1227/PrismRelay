@@ -115,5 +115,6 @@ export interface Preferences {
   language: Language;
   theme: Theme;
   reduceMotion: boolean;
+  sidebarCollapsed: boolean;
   request: ScanRequest;
 }

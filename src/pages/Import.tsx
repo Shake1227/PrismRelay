@@ -1,6 +1,7 @@
 import { useI18n } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowDown,
   ArrowDownToLine,
   ArrowRight,
   Check,
@@ -49,6 +50,31 @@ export function Import({
   const [appliedCount, setAppliedCount] = useState(0);
   const previewGuard = useRef(createRequestGuard());
   const fileInput = useRef<HTMLInputElement>(null);
+  const previewPanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!preview) return;
+    const frame = window.requestAnimationFrame(() => {
+      const panel = previewPanel.current;
+      const scroller = panel?.closest<HTMLElement>(".main-content");
+      if (!panel || !scroller) return;
+      const header = scroller.querySelector<HTMLElement>(".page-header");
+      const reduceMotion =
+        document.documentElement.dataset.reduceMotion === "true" ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const top =
+        scroller.scrollTop +
+        panel.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        scroller.clientTop -
+        (header?.getBoundingClientRect().height ?? 0) -
+        12;
+      scroller.scrollTo({
+        top: Math.max(0, top),
+        behavior: reduceMotion ? "instant" : "smooth",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [preview]);
   useEffect(() => {
     previewGuard.current.invalidate();
     setDecoded(null);
@@ -340,12 +366,12 @@ export function Import({
                 onClick={() => void makePreview()}
               >
                 {t("差分をプレビュー")}
-                <ArrowRight size={16} />
+                <ArrowDown size={16} />
               </button>
             </div>
           </section>
           {preview && (
-            <section className="glass-panel diff-panel">
+            <section className="glass-panel diff-panel" ref={previewPanel}>
               <div className="panel-heading">
                 <div>
                   <h3>{t("変更内容を確認")}</h3>

@@ -31,10 +31,6 @@ export function Home({
     <div className="home-page">
       <section className="hero glass-panel">
         <div className="hero-content">
-          <span className="eyebrow">
-            <span className="sparkle-dot" />
-            {t("SHARE SETTINGS")}
-          </span>
           <h2>
             {t("設定を選んで、")}
             <br />
@@ -66,9 +62,6 @@ export function Home({
           <PrismMark className="hero-prism" />
           <span className="orbit-spark one" />
           <span className="orbit-spark two" />
-          <span className="hero-art-caption">
-            {t("EXPORT \xB7 IMPORT \xB7 RESTORE")}
-          </span>
         </div>
       </section>
       <div className="section-heading">

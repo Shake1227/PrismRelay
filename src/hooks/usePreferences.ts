@@ -5,6 +5,7 @@ const defaults: Preferences = {
   language: "ja",
   theme: "dark",
   reduceMotion: false,
+  sidebarCollapsed: false,
   request: {},
 };
 
@@ -23,6 +24,7 @@ function loadPreferences(): Preferences {
         ? stored.theme!
         : defaults.theme,
       reduceMotion: stored.reduceMotion === true,
+      sidebarCollapsed: stored.sidebarCollapsed === true,
       request: {
         minecraftRoot:
           typeof stored.request?.minecraftRoot === "string"

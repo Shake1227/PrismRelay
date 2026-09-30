@@ -3,6 +3,44 @@ import type { Language } from "../models";
 type MessageRow = [string, string, string, string, string, string, string];
 const rows: MessageRow[] = [
   [
+    "メニューを展開",
+    "Expand menu",
+    "메뉴 펼치기",
+    "展开菜单",
+    "Laajenna valikko",
+    "Expandir menú",
+    "Menü ausklappen",
+  ],
+  [
+    "メニューを折りたたむ",
+    "Collapse menu",
+    "메뉴 접기",
+    "折叠菜单",
+    "Supista valikko",
+    "Contraer menú",
+    "Menü einklappen",
+  ],
+
+  [
+    "サイドバーを開く",
+    "Open sidebar",
+    "사이드바 열기",
+    "展开侧边栏",
+    "Avaa sivupalkki",
+    "Abrir barra lateral",
+    "Seitenleiste öffnen",
+  ],
+  [
+    "サイドバーを閉じる",
+    "Close sidebar",
+    "사이드바 닫기",
+    "收起侧边栏",
+    "Sulje sivupalkki",
+    "Cerrar barra lateral",
+    "Seitenleiste schließen",
+  ],
+
+  [
     "コードが長い場合はファイルとして保存して共有できます。",
     "Long codes can be saved as files for sharing.",
     "긴 코드는 파일로 저장하여 공유할 수 있습니다.",

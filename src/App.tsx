@@ -10,6 +10,8 @@ import {
   HardDrive,
   Home as HomeIcon,
   Info,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCw,
   Settings2,
   ShieldCheck,
@@ -172,8 +174,10 @@ function WorkspaceApp({
     navigate: setPage,
   };
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div
+      className={`app-shell ${preferences.sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+    >
+      <aside className="sidebar" id="app-sidebar">
         <div className="brand">
           <PrismMark className="brand-mark" />
           <div>
@@ -195,6 +199,7 @@ function WorkspaceApp({
               }}
               aria-current={page === id ? "page" : undefined}
               aria-label={t(label)}
+              title={t(label)}
             >
               <Icon size={18} />
               <span>{t(label)}</span>
@@ -227,6 +232,33 @@ function WorkspaceApp({
         <header className="page-header">
           <div>
             <div className="header-breadcrumb">
+              <button
+                className="icon-button sidebar-toggle"
+                aria-label={
+                  preferences.sidebarCollapsed
+                    ? t("メニューを展開")
+                    : t("メニューを折りたたむ")
+                }
+                title={
+                  preferences.sidebarCollapsed
+                    ? t("メニューを展開")
+                    : t("メニューを折りたたむ")
+                }
+                aria-expanded={!preferences.sidebarCollapsed}
+                aria-controls="app-sidebar"
+                onClick={() =>
+                  setPreferences((current) => ({
+                    ...current,
+                    sidebarCollapsed: !current.sidebarCollapsed,
+                  }))
+                }
+              >
+                {preferences.sidebarCollapsed ? (
+                  <PanelLeftOpen size={17} />
+                ) : (
+                  <PanelLeftClose size={17} />
+                )}
+              </button>
               {t("Workspace")}
               <ChevronRight size={11} /> {t(active.label)}
             </div>
