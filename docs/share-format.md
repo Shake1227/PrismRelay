@@ -1,87 +1,138 @@
 # Prism Relay share format
 
-Prism Relay 0.1 uses a self-contained `PRS1:` code. No account, upload service, or database is required. A `.prism` file contains the same UTF-8 code shown in the app.
+Prism Relay exports self-contained `PRS2:` codes. Existing `PRS1:` codes still decode. No account, upload service, or database is required. A `.prism` file contains the same UTF-8 code shown in the app.
 
-## Version 1 pipeline
+The compact format keeps setting values unchanged. Minecraft values keep their original strings, including numeric formatting such as `0.50`. Lunar values keep their scalar JSON types, integer colors, and floating-point values.
 
-1. Validate every selected setting against the same default-deny rules used by the scanner and importer.
+## Version 2 pipeline
+
+1. Validate every selected setting against the scanner and importer's default-deny rules.
 2. Replace local profile names with `profile-1`, `profile-2`, and so on, independently for each source.
-3. Keep only the source, file kind, anonymous profile, setting pointer, and approved value for each record. Local IDs, labels, categories, groups, directory names, and file paths are absent from the payload.
-4. Serialize the envelope as compact MessagePack arrays.
-5. Compress with Zstandard level 3.
-6. Prepend the 32-byte SHA-256 digest of the compressed bytes.
-7. Encode the digest and compressed bytes using unpadded Base64URL, then prepend `PRS1:`.
+3. Group records by file kind and anonymous profile, with pointers sorted inside each group.
+4. Serialize compact MessagePack arrays. Try full pointers, common-prefix pointers, and frozen dictionary indices; compress each candidate and keep the shortest result.
+5. Compress with Brotli quality 11 and a 4 MiB window (`lgwin = 22`).
+6. Prepend the complete 32-byte SHA-256 digest of the compressed bytes.
+7. Encode the digest and compressed bytes as unpadded Base64URL, then prepend `PRS2:`.
 
-The exact layout is:
+```text
+PRS2:base64url(sha256(compressed_payload) || compressed_payload)
+```
+
+The checksum detects accidental damage. It does not authenticate the sender: anyone can create a valid checksum. The decoder therefore checks the whole payload and every setting before presenting an import preview.
+
+## Version 2 payload
+
+The ordered array layout is:
+
+```text
+[2, timestamp, applicationVersion, minecraftVersion, lunarVersion, platform, groups]
+group = [fileKind, profile, settings]
+setting = [pointer, value]
+        | [negativeDictionaryIndex, value]
+        | [prefixByteLength, pointerSuffix, value]
+```
+
+`timestamp` is a Unix timestamp in whole seconds. Decoding expands it to the RFC 3339 `createdAt` field used by the app. Optional game versions are MessagePack `nil` when unavailable. Platform codes are `0` for Windows, `1` for macOS, and `2` for Linux. A profile is an integer from 1 to 10,000, expanded to `profile-N` when decoding.
+
+| File-kind code | Source | File kind |
+| ---: | --- | --- |
+| 0 | Minecraft | `options` |
+| 1 | Lunar | `mods` |
+| 2 | Lunar | `general` |
+| 3 | Lunar | `controls` |
+| 4 | Lunar | `performance` |
+
+Full pointers are bounded UTF-8 strings. A negative integer `-(index + 1)` references the fixed `POINTER_DICTIONARY` in `src-tauri/src/codec.rs`. The table has 611 public setting pointers and is part of the PRS2 specification. Its order and contents must never change, even if the scanner's allowlist changes. Its SHA-256 fingerprint, hashing each pointer followed by a newline, is:
+
+```text
+099b6870a9e420ca9d116422548c26524845439e4fccc7eb916a25485bdd38a5
+```
+
+Regression tests check the fingerprint, table length, and known indices. Later approved pointers absent from the table can use full strings or common-prefix records. A different dictionary requires a different format version and prefix; regenerating indices from the current scanner schema would break existing codes.
+
+A positive prefix length references that many bytes of the previous expanded pointer in the same group, followed by the suffix. Lengths must be within the previous pointer and end at a UTF-8 character boundary. A group starts without a previous pointer. Dictionary and full-pointer records update the previous pointer too. The current encoder uses a prefix only when at least three bytes match. Decoding accepts prefix lengths from 1 to 512 and expanded pointers no longer than 512 bytes. Values never use dictionary or prefix references.
+
+The public `ShareEnvelope` still exposes full pointers, source names, anonymous profiles, RFC 3339 creation time, and string platform names. Labels and categories are regenerated from approved pointers. Local IDs, display labels, directory names, paths, and original profile names are absent from both wire formats.
+
+## Version 1 compatibility
+
+Legacy codes keep their original Zstandard level 3 pipeline:
 
 ```text
 PRS1:base64url(sha256(compressed_payload) || compressed_payload)
-```
-
-The checksum detects accidental damage. It does not authenticate the sender: anyone can create a valid checksum. Decoding therefore validates the full payload and every setting independently before making an import preview available.
-
-## Payload schema
-
-The semantic envelope has these fields, in this order:
-
-```text
-[formatVersion, createdAt, applicationVersion, metadata, settings]
+[1, createdAt, applicationVersion, metadata, settings]
 metadata = [minecraftVersion, lunarVersion, platform]
 setting = [source, fileKind, profile, pointer, value]
 ```
 
-`formatVersion` is the integer `1`. `createdAt` is an RFC 3339 timestamp. The application version is a bounded version string starting with a digit. Game versions contain two to four numeric components or a Minecraft snapshot identifier such as `24w14a`. Local version-directory suffixes are removed during export so custom profile names do not enter metadata. Optional versions are MessagePack `nil` when unavailable. `platform` is `windows`, `macos`, or `linux`.
+The prefix selects the decoder and the payload must contain the matching version. Existing codes can be imported without conversion. Re-exporting uses PRS2. Unknown prefixes and versions are rejected.
 
-`source` is `minecraft` or `lunar`. Minecraft uses `options` as its file kind and an options key as its pointer. Values retain their original string representation. Lunar uses an approved file kind and a JSON Pointer into an observed, allowlisted schema. Lunar values retain their scalar JSON types.
+IDs are regenerated with SHA-256 over four UTF-8 components: source, file kind, anonymous profile, and full pointer. Each component is preceded by its byte length as an unsigned 32-bit little-endian integer. Import maps approved pointers to an explicitly selected local target profile; shared profiles never become filesystem paths.
 
-The ordered array layout is part of format version 1; changing it requires a new format version and prefix. There is no compression negotiation inside version 1. A future short sharing ID would be a separate transport, with separate network and privacy controls.
-
-On decode, setting labels and categories are regenerated from the approved pointer. IDs are regenerated with SHA-256 over four UTF-8 components: source, file kind, anonymous profile, and pointer. Each component is preceded by its byte length as an unsigned 32-bit little-endian integer. These IDs identify settings within the decoded code. Import maps approved pointers to an explicitly selected local target profile; shared profile names never become filesystem paths.
+The application version is a bounded version string starting with a digit. Game versions contain two to four numeric components or a Minecraft snapshot identifier such as `24w14a`. Local version-directory suffixes are removed during export so custom profile names do not enter metadata.
 
 ## Limits and privacy
 
-| Limit | Version 1 |
+| Limit | Both versions |
 | --- | ---: |
 | Share-code input | 2 MiB |
 | Decompressed payload | 8 MiB |
-| Zstandard decoding window | 8 MiB |
+| Maximum decoding window | 8 MiB |
 | Selected settings | 1–10,000 |
 | Per-value conservative serialization budget | 64 KiB |
 | Per-value nesting depth | 16 |
 | MessagePack nesting depth | 32 |
 
-The decoder bounds input before Base64 allocation and reads no more than 8 MiB plus one detection byte. It limits the settings array while deserializing and accepts only bounded scalar values; nested arrays or objects are rejected before their contents are allocated. Unknown versions, malformed Base64, checksum failures, invalid MessagePack, trailing uncompressed bytes, duplicate records, non-anonymous profiles, and unapproved settings are rejected. A valid checksum does not bypass any limit or whitelist.
+The decoder bounds input before Base64 allocation. Zstandard uses an explicit window limit. Brotli's window header is checked before allocating the decoder; windows above 8 MiB and extended large-window headers are rejected. Brotli output is read in bounded chunks and stops when the 8 MiB output limit would be exceeded. The cumulative setting count is checked while reading groups.
 
-Codes contain selected settings and version/platform metadata, rather than the original configuration files. Account files, authentication fields, tokens, server addresses, paths, logs, and unknown fields are excluded. If Resource Packs are selected, approved pack identifiers can include custom pack filenames. Deselect that category when those filenames should remain private. Codes are not encrypted; share them only with the intended recipients.
+Both formats accept only bounded scalar values. Nested arrays and objects are rejected before allocating their contents. The decoder rejects malformed Base64, checksum failures, invalid MessagePack, trailing uncompressed bytes, duplicate records or groups, invalid profile and dictionary indices, invalid prefix boundaries, and unapproved settings. PRS2 also rejects trailing compressed bytes. A valid checksum does not bypass limits or the allowlist.
+
+Codes contain selected settings and version/platform metadata. Account files, authentication fields, tokens, server addresses, paths, logs, and unknown fields are excluded. Approved Resource Pack identifiers can include custom pack filenames; deselect that category if those names should remain private. Codes are not encrypted.
+
+## Discord sharing
+
+The app uses 2,000 characters as the ordinary Discord message budget. Representative selections fit, but their size depends on the settings, values, and number of profiles. There is no promise that every selection fits in one message. When a code is longer than the message budget, attach its `.prism` file to Discord. Splitting or truncating the code changes its contents and can make it unreadable.
 
 ## Compression comparison
 
-The reproducible benchmark is `src-tauri/examples/codec_benchmark.rs`:
+Run the synthetic benchmark with:
 
 ```sh
 cd src-tauri
 cargo run --release --example codec_benchmark
 ```
 
-It compares JSON and compact MessagePack representations of the same minimal envelope, each compressed with Zstandard level 3 or Brotli quality 5. The fixtures are synthetic and contain only approved setting names and values, with 24, 120, and 600 records. They include Minecraft video, mouse, audio, and controls plus observed Lunar HUD pointers. They contain no real user configuration or account data.
+The benchmark compares JSON and MessagePack, Zstandard level 3 and Brotli qualities 5, 9, and 11, grouped records, common-prefix pointers, and dictionary pointers. The shipping pipeline tries all three MessagePack representations at quality 11 and picks the smallest compressed candidate. The complete checksum and prefix are included in every character count.
 
-The timing includes serialization, compression, checksum, and Base64 framing for encode; Base64, checksum verification, decompression, deserialization, and equality verification for decode. Each result averages 200 iterations. The benchmark deserializes a mirror of the payload schema to compare the pipelines; the shipping decoder's whitelist checks and additional structural limits are outside the timing. The setting safety checks run once when constructing each benchmark fixture.
+Fixtures contain only approved public setting names and invented values. `small` includes 15 Minecraft settings and nine Lunar HUD values. `multi-profile` repeats that selection across five profiles. `broad-120` has one profile with 15 Minecraft settings and 105 distinct Lunar leaves. `broad-all` has one profile with 15 Minecraft settings and all 465 approved Lunar leaves. The large profile fixture repeats the 24-setting selection across 25 profiles. These repetitions make compression easier; the broad fixtures show the cost of distinct setting pointers and varied values.
 
-Measured on 2026-09-30 with an Apple M4, macOS 26.5.2, Rust 1.98.1, `rmp-serde` 1.3.1, `zstd` 0.13.3, and `brotli` 8.0.4 in release mode. Timings vary by hardware and configuration. Byte counts are deterministic for these fixtures and the fixed benchmark timestamp.
+Encode timing includes serialization, candidate compression, checksum, and Base64 framing. Decode timing includes Base64, checksum verification, decompression, mirror-schema deserialization, and equality checks. The shipping row includes all three candidate encodes. The app's whitelist checks, identity regeneration, and additional structural validation are outside these timing measurements; the benchmark also passes each final code through the real decoder and verifies its settings. Each timing averages 50 iterations with a fixed timestamp.
 
-| Records | Representation | Compression | Raw bytes | Compressed bytes | Code characters | Encode µs | Decode µs |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 24 | JSON | Zstd 3 | 2,663 | 553 | 785 | 31.5 | 23.0 |
-| 24 | JSON | Brotli 5 | 2,663 | 447 | 644 | 63.1 | 24.6 |
-| 24 | MessagePack | Zstd 3 | 1,151 | 456 | 656 | 20.2 | 10.3 |
-| 24 | MessagePack | Brotli 5 | 1,151 | 394 | 573 | 35.8 | 15.3 |
-| 120 | JSON | Zstd 3 | 12,603 | 1,122 | 1,544 | 31.5 | 41.1 |
-| 120 | JSON | Brotli 5 | 12,603 | 908 | 1,259 | 212.2 | 43.9 |
-| 120 | MessagePack | Zstd 3 | 5,559 | 894 | 1,240 | 20.4 | 24.6 |
-| 120 | MessagePack | Brotli 5 | 5,559 | 729 | 1,020 | 167.5 | 31.0 |
-| 600 | JSON | Zstd 3 | 62,687 | 4,082 | 5,491 | 93.5 | 177.4 |
-| 600 | JSON | Brotli 5 | 62,687 | 3,059 | 4,127 | 310.1 | 188.5 |
-| 600 | MessagePack | Zstd 3 | 27,983 | 3,293 | 4,439 | 57.9 | 116.7 |
-| 600 | MessagePack | Brotli 5 | 27,983 | 2,406 | 3,256 | 232.0 | 128.2 |
+Measured on 2026-09-30 with an Apple M4, macOS 26.5.2, Rust 1.98.1, `rmp-serde` 1.3.1, `zstd` 0.13.3, and `brotli` 8.0.4 in release mode. Timing varies with hardware and system load. The example prints every measured combination; these rows show the main comparison:
 
-MessagePack cuts the uncompressed size by roughly 56% compared with JSON for these fixtures. Brotli produces the smallest codes, while Zstd encodes the MessagePack fixtures about 1.8–8.2 times faster and decodes every fixture faster. Version 1 chooses MessagePack with Zstd level 3 for predictable interactive performance and a decoder with an explicit memory-window bound. A typical 120-setting fixture occupies 1,240 characters including the checksum and prefix. Larger selections should use a `.prism` file when they exceed the app's QR limit.
+| Fixture | Records | Representation | Compression | Raw bytes | Compressed bytes | Code characters | Encode µs | Decode µs |
+| --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Small | 24 | Legacy JSON | Zstd 3 | 2,664 | 555 | 788 | 16.3 | 13.4 |
+| Small | 24 | Legacy MessagePack | Zstd 3 | 1,152 | 460 | 661 | 13.8 | 9.2 |
+| Small | 24 | Legacy MessagePack | Brotli 5 | 1,152 | 393 | 572 | 38.6 | 14.5 |
+| Small | 24 | Grouped MessagePack | Brotli 5 | 525 | 322 | 477 | 31.9 | 12.4 |
+| Small | 24 | Grouped MessagePack | Brotli 11 | 525 | 307 | 457 | 1,100.1 | 12.4 |
+| Small | 24 | PRS2 shipping | Brotli 11 | 287 | 224 | 347 | 3,004.3 | 15.8 |
+| Five profiles | 120 | Legacy MessagePack | Zstd 3 | 5,564 | 896 | 1,243 | 19.6 | 25.6 |
+| Five profiles | 120 | PRS2 shipping | Brotli 11 | 1,343 | 246 | 376 | 9,563.4 | 32.9 |
+| Distinct settings | 120 | Legacy JSON | Zstd 3 | 14,146 | 1,994 | 2,707 | 33.1 | 42.0 |
+| Distinct settings | 120 | Legacy MessagePack | Zstd 3 | 6,898 | 1,821 | 2,476 | 25.0 | 28.7 |
+| Distinct settings | 120 | Legacy MessagePack | Brotli 5 | 6,898 | 1,589 | 2,167 | 172.5 | 41.8 |
+| Distinct settings | 120 | Grouped MessagePack | Brotli 5 | 4,212 | 1,369 | 1,873 | 173.8 | 33.6 |
+| Distinct settings | 120 | Grouped MessagePack | Brotli 9 | 4,212 | 1,364 | 1,867 | 607.6 | 34.7 |
+| Distinct settings | 120 | Grouped MessagePack | Brotli 11 | 4,212 | 1,239 | 1,700 | 3,190.5 | 31.2 |
+| Distinct settings | 120 | Prefix MessagePack | Brotli 11 | 2,514 | 1,121 | 1,543 | 2,836.2 | 37.9 |
+| Distinct settings | 120 | PRS2 shipping | Brotli 11 | 1,081 | 582 | 824 | 7,055.4 | 36.1 |
+| All Lunar leaves | 480 | Legacy MessagePack | Zstd 3 | 30,592 | 6,520 | 8,741 | 74.3 | 111.6 |
+| All Lunar leaves | 480 | Grouped MessagePack | Brotli 11 | 20,346 | 4,308 | 5,792 | 12,644.5 | 100.7 |
+| All Lunar leaves | 480 | Prefix MessagePack | Brotli 11 | 10,254 | 3,714 | 5,000 | 6,388.7 | 113.7 |
+| All Lunar leaves | 480 | PRS2 shipping | Brotli 11 | 4,499 | 1,630 | 2,221 | 23,766.4 | 109.7 |
+| 25 profiles | 600 | Legacy MessagePack | Zstd 3 | 28,008 | 3,293 | 4,439 | 57.1 | 121.0 |
+| 25 profiles | 600 | PRS2 shipping | Brotli 11 | 6,625 | 329 | 487 | 43,433.0 | 139.7 |
+
+PRS2 reduces the distinct 120-setting fixture from 2,476 to 824 characters, about 67%, bringing it below the ordinary Discord message budget. The broad 480-setting fixture falls from 8,741 to 2,221 characters, about 75%, and should use a file attachment. Brotli quality 11 costs more encode time than Zstandard or lower Brotli qualities, but the measured fixtures remain in milliseconds. Export runs on a background worker to keep the interface responsive. Lower qualities and full-pointer alternatives remain benchmarked so future decisions can be checked against the same fixtures.

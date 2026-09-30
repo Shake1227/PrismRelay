@@ -3,17 +3,633 @@ use crate::safety::canonicalize_setting;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::de::{self, SeqAccess, Visitor};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{Cursor, Read};
+use std::marker::PhantomData;
 
-pub const PREFIX: &str = "PRS1:";
+pub const PREFIX: &str = "PRS2:";
+pub const LEGACY_PREFIX: &str = "PRS1:";
 pub const MAX_CODE_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_UNCOMPRESSED_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_SETTINGS: usize = 10_000;
+pub const POINTER_DICTIONARY: &[&str] = &[
+    "/3D_SKINS/enabled",
+    "/ARMORSTATUS/ARMORSTATUS_BOOTS_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_BOOTS_CHILD/y",
+    "/ARMORSTATUS/ARMORSTATUS_CHESTPLATE_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_CHESTPLATE_CHILD/y",
+    "/ARMORSTATUS/ARMORSTATUS_HELMET_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_HELMET_CHILD/y",
+    "/ARMORSTATUS/ARMORSTATUS_LEGGINGS_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_LEGGINGS_CHILD/y",
+    "/ARMORSTATUS/ARMORSTATUS_OFF_HAND_HELD_ITEM_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_OFF_HAND_HELD_ITEM_CHILD/y",
+    "/ARMORSTATUS/ARMORSTATUS_PROTECTION_CHILD/position",
+    "/ARMORSTATUS/ARMORSTATUS_PROTECTION_CHILD/y",
+    "/ARMORSTATUS/options/armorDamage",
+    "/ARMORSTATUS/options/itemDamage",
+    "/ARMORSTATUS/x",
+    "/ARMORSTATUS/y",
+    "/AUDIO_SUBTITLES/position",
+    "/AUDIO_SUBTITLES/y",
+    "/BLOCK_OUTLINE/enabled",
+    "/BLOCK_OUTLINE/options/blockOutlineColor/chroma",
+    "/BLOCK_OUTLINE/options/blockOutlineColor/value",
+    "/BLOCK_OUTLINE/options/blockOutlineWidth",
+    "/BLOCK_OUTLINE/options/blockOverlay",
+    "/BOSSBAR/position",
+    "/BOSSBAR/x",
+    "/BOSSBAR/y",
+    "/CHAT/options/copyChat",
+    "/CHAT/options/stackMessages",
+    "/CHAT/options/timeBasedStackMessagesTimeframe",
+    "/CLOCK/options/backgroundColor/chroma",
+    "/CLOCK/options/backgroundColor/value",
+    "/CLOCK/position",
+    "/CLOCK/x",
+    "/CLOCK/y",
+    "/COMBO/options/backgroundColor/chroma",
+    "/COMBO/options/backgroundColor/value",
+    "/COMBO/options/backgroundHeight",
+    "/COMBO/position",
+    "/COMBO/x",
+    "/COMBO/y",
+    "/COOLDOWNS/enabled",
+    "/COOLDOWNS/position",
+    "/COOLDOWNS/x",
+    "/COOLDOWNS/y",
+    "/COORDINATES/enabled",
+    "/COORDINATES/options/backgroundColor/chroma",
+    "/COORDINATES/options/backgroundColor/value",
+    "/COORDINATES/options/showAxisLabels",
+    "/COORDINATES/options/showC",
+    "/COORDINATES/options/showDirection",
+    "/COORDINATES/position",
+    "/COORDINATES/x",
+    "/COORDINATES/y",
+    "/CPS/enabled",
+    "/CPS/options/background",
+    "/CPS/options/backgroundColor/chroma",
+    "/CPS/options/backgroundColor/value",
+    "/CPS/options/lineColor/value",
+    "/CPS/options/rightClick",
+    "/CPS/position",
+    "/CPS/x",
+    "/CPS/y",
+    "/CROSSHAIR/CROSSHAIR_ENEMY/options/gridSize",
+    "/CROSSHAIR/CROSSHAIR_FRIENDLY/options/gridSize",
+    "/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize",
+    "/CROSSHAIR/options/crosshairGap",
+    "/CROSSHAIR/options/crosshairOutline",
+    "/CROSSHAIR/options/crosshairSize",
+    "/CROSSHAIR/options/help_box_open",
+    "/DIRECTION_HUD/enabled",
+    "/DIRECTION_HUD/options/useLegacyStyle",
+    "/DIRECTION_HUD/position",
+    "/DIRECTION_HUD/x",
+    "/DIRECTION_HUD/y",
+    "/F3_DISPLAY/default_game_info/options/background",
+    "/F3_DISPLAY/default_game_info/options/labelColor/value",
+    "/F3_DISPLAY/default_game_info/options/valueColor/value",
+    "/F3_DISPLAY/default_pie_chart/options/background",
+    "/F3_DISPLAY/default_pie_chart/options/labelColor/value",
+    "/F3_DISPLAY/default_pie_chart/options/scale",
+    "/F3_DISPLAY/default_pie_chart/options/valueColor/value",
+    "/F3_DISPLAY/default_pie_chart/position",
+    "/F3_DISPLAY/default_pie_chart/y",
+    "/F3_DISPLAY/default_player_info/options/background",
+    "/F3_DISPLAY/default_player_info/options/labelColor/value",
+    "/F3_DISPLAY/default_player_info/options/valueColor/value",
+    "/F3_DISPLAY/default_player_info/position",
+    "/F3_DISPLAY/default_player_info/y",
+    "/F3_DISPLAY/default_target_info/options/background",
+    "/F3_DISPLAY/default_target_info/options/labelColor/value",
+    "/F3_DISPLAY/default_target_info/options/valueColor/value",
+    "/F3_DISPLAY/default_target_info/position",
+    "/F3_DISPLAY/default_target_info/y",
+    "/F3_DISPLAY/default_world_info/options/background",
+    "/F3_DISPLAY/default_world_info/options/labelColor/value",
+    "/F3_DISPLAY/default_world_info/options/valueColor/value",
+    "/F3_DISPLAY/default_world_info/position",
+    "/F3_DISPLAY/default_world_info/y",
+    "/FOG/enabled",
+    "/FOG/options/renderDistanceFogColorToggle",
+    "/FOG/options/renderDistanceFogDensity",
+    "/FOG/options/waterFogDensity",
+    "/FPS/enabled",
+    "/FPS/options/background",
+    "/FPS/options/backgroundColor/chroma",
+    "/FPS/options/backgroundColor/value",
+    "/FPS/position",
+    "/FPS/x",
+    "/FPS/y",
+    "/HEIGHT_LIMIT/enabled",
+    "/HURT_CAM/enabled",
+    "/HURT_CAM/options/disableHurtCam",
+    "/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_HEIGHT_LIMIT_CHILD/position",
+    "/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_HEIGHT_LIMIT_CHILD/y",
+    "/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_RESOURCE_COUNTER_CHILD/position",
+    "/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_RESOURCE_COUNTER_CHILD/x",
+    "/HYPIXEL_MOD/HYPIXEL_TPS/enabled",
+    "/HYPIXEL_MOD/HYPIXEL_TPS/options/background",
+    "/HYPIXEL_MOD/HYPIXEL_TPS/position",
+    "/HYPIXEL_MOD/HYPIXEL_TPS/x",
+    "/HYPIXEL_MOD/HYPIXEL_TPS/y",
+    "/HYPIXEL_MOD/options/levelHead",
+    "/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybind",
+    "/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindAlt",
+    "/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindControl",
+    "/INVENTORY_MOD/SLOT_BINDING/options/slotBindingKeybindShift",
+    "/INVENTORY_MOD/SLOT_BINDING/options/slotBindingLockBound",
+    "/INVENTORY_MOD/enabled",
+    "/INVENTORY_MOD/options/dontResetCursorInventory",
+    "/ITEM_COUNTER/position",
+    "/ITEM_COUNTER/x",
+    "/ITEM_COUNTER/y",
+    "/ITEM_TRACKER/options/skyblockOnly",
+    "/ITEM_TRACKER/options/textShadow",
+    "/ITEM_TRACKER/position",
+    "/ITEM_TRACKER/x",
+    "/ITEM_TRACKER/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_A/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_A/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_A/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_D/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_D/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_D/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE1/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_MOUSE2/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_S/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_S/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_S/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_SPACE/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_SPACE/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_SPACE/y",
+    "/KEYSTROKES/KEYSTROKE_KEY_W/position",
+    "/KEYSTROKES/KEYSTROKE_KEY_W/x",
+    "/KEYSTROKES/KEYSTROKE_KEY_W/y",
+    "/KEYSTROKES/enabled",
+    "/KEYSTROKES/options/backgroundColor/chroma",
+    "/KEYSTROKES/options/backgroundColor/value",
+    "/KEYSTROKES/options/backgroundPressedColor/value",
+    "/KEYSTROKES/options/textShadow",
+    "/KEYSTROKES/position",
+    "/KEYSTROKES/x",
+    "/KEYSTROKES/y",
+    "/LIGHT_OVERLAY/enabledToggle",
+    "/MEMORY/options/backgroundColor/chroma",
+    "/MEMORY/options/backgroundColor/value",
+    "/MEMORY/position",
+    "/MEMORY/x",
+    "/MEMORY/y",
+    "/MOMENTUM/position",
+    "/MOMENTUM/x",
+    "/MOMENTUM/y",
+    "/MUMBLE_LINK/enabled",
+    "/ONE_SEVEN_VISUALS/ONE_SEVEN_ANIMATIONS_LEGACY/enabled",
+    "/ONE_SEVEN_VISUALS/ONE_SEVEN_ITEMS_LEGACY/enabled",
+    "/ONE_SEVEN_VISUALS/enabled",
+    "/PARTICLE_CHANGER/PARTICLE_CHANGER_BLOCK_CHILD/enabled",
+    "/PARTICLE_CHANGER/PARTICLE_CHANGER_BLOCK_CHILD/options/hideParticle",
+    "/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/enabled",
+    "/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/options/hideParticle",
+    "/PARTICLE_CHANGER/PARTICLE_CHANGER_EXPLOSION_CHILD/options/scale",
+    "/PARTICLE_CHANGER/enabled",
+    "/PING/PING_HUD/options/background",
+    "/PING/PING_HUD/position",
+    "/PING/PING_HUD/x",
+    "/PING/PING_HUD/y",
+    "/PING/enabled",
+    "/PING/options/backgroundColor/chroma",
+    "/PING/options/backgroundColor/value",
+    "/PING/x",
+    "/PING/y",
+    "/PLAYTIME/position",
+    "/PLAYTIME/x",
+    "/PLAYTIME/y",
+    "/POTION_EFFECTS/options/background",
+    "/POTION_EFFECTS/options/excludePerm",
+    "/POTION_EFFECTS/position",
+    "/POTION_EFFECTS/x",
+    "/POTION_EFFECTS/y",
+    "/PVP_INFO/PVP_INFO_HEALTH_CHILD/position",
+    "/PVP_INFO/PVP_INFO_HEALTH_CHILD/x",
+    "/PVP_INFO/PVP_INFO_HEALTH_CHILD/y",
+    "/PVP_INFO/PVP_INFO_MELEE_CHILD/position",
+    "/PVP_INFO/PVP_INFO_MELEE_CHILD/x",
+    "/PVP_INFO/PVP_INFO_MELEE_CHILD/y",
+    "/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/position",
+    "/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/x",
+    "/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/y",
+    "/QUICKPLAY/enabled",
+    "/QUICKPLAY/options/quickplayUIKeybind",
+    "/QUICKPLAY/options/quickplayUIKeybindAlt",
+    "/QUICKPLAY/options/quickplayUIKeybindControl",
+    "/QUICKPLAY/options/quickplayUIKeybindShift",
+    "/RADIO/enabled",
+    "/REACH_DISPLAY/options/backgroundColor/chroma",
+    "/REACH_DISPLAY/options/backgroundColor/value",
+    "/REACH_DISPLAY/position",
+    "/REACH_DISPLAY/x",
+    "/REACH_DISPLAY/y",
+    "/REWIND/REWIND_RECORDING_INDICATOR_CHILD/position",
+    "/REWIND/REWIND_RECORDING_INDICATOR_CHILD/x",
+    "/REWIND/REWIND_RECORDING_INDICATOR_CHILD/y",
+    "/SATURATION/SATURATION_HUD_CHILD/position",
+    "/SATURATION/SATURATION_HUD_CHILD/x",
+    "/SATURATION/SATURATION_HUD_CHILD/y",
+    "/SATURATION/enabled",
+    "/SBA/SBA_BAIT_LIST_CHILD/x",
+    "/SBA/SBA_BAIT_LIST_CHILD/y",
+    "/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/enabled",
+    "/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/x",
+    "/SBA/SBA_BIRCH_PARK_RAINMAKER_CHILD/y",
+    "/SBA/SBA_BONE_DISPLAY_CHILD/x",
+    "/SBA/SBA_BONE_DISPLAY_CHILD/y",
+    "/SBA/SBA_DARK_AUCTION_TIMER_CHILD/enabled",
+    "/SBA/SBA_DARK_AUCTION_TIMER_CHILD/x",
+    "/SBA/SBA_DARK_AUCTION_TIMER_CHILD/y",
+    "/SBA/SBA_DEFENSE_ICON_CHILD/enabled",
+    "/SBA/SBA_DEFENSE_ICON_CHILD/position",
+    "/SBA/SBA_DEFENSE_ICON_CHILD/x",
+    "/SBA/SBA_DEFENSE_ICON_CHILD/y",
+    "/SBA/SBA_DEFENSE_TEXT_CHILD/enabled",
+    "/SBA/SBA_DEFENSE_TEXT_CHILD/position",
+    "/SBA/SBA_DEFENSE_TEXT_CHILD/x",
+    "/SBA/SBA_DEFENSE_TEXT_CHILD/y",
+    "/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/enabled",
+    "/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/x",
+    "/SBA/SBA_ENDSTONE_PROTECTOR_CHILD/y",
+    "/SBA/SBA_FEATURE_WARNING_CHILD/position",
+    "/SBA/SBA_FEATURE_WARNING_CHILD/x",
+    "/SBA/SBA_FEATURE_WARNING_CHILD/y",
+    "/SBA/SBA_HEALTH_BAR_CHILD/enabled",
+    "/SBA/SBA_HEALTH_BAR_CHILD/x",
+    "/SBA/SBA_HEALTH_BAR_CHILD/y",
+    "/SBA/SBA_HEALTH_TEXT_CHILD/enabled",
+    "/SBA/SBA_HEALTH_TEXT_CHILD/x",
+    "/SBA/SBA_HEALTH_TEXT_CHILD/y",
+    "/SBA/SBA_MANA_BAR_CHILD/enabled",
+    "/SBA/SBA_MANA_BAR_CHILD/x",
+    "/SBA/SBA_MANA_BAR_CHILD/y",
+    "/SBA/SBA_MANA_TEXT_CHILD/enabled",
+    "/SBA/SBA_MANA_TEXT_CHILD/x",
+    "/SBA/SBA_MANA_TEXT_CHILD/y",
+    "/SBA/SBA_POWER_ORB_STATUS_CHILD/enabled",
+    "/SBA/SBA_POWER_ORB_STATUS_CHILD/options/scale",
+    "/SBA/SBA_POWER_ORB_STATUS_CHILD/x",
+    "/SBA/SBA_POWER_ORB_STATUS_CHILD/y",
+    "/SBA/SBA_SKILL_DISPLAY_CHILD/enabled",
+    "/SBA/SBA_SKILL_DISPLAY_CHILD/options/textColor/value",
+    "/SBA/SBA_SKILL_DISPLAY_CHILD/y",
+    "/SBA/SBA_SPEED_TEXT_CHILD/x",
+    "/SBA/SBA_SPEED_TEXT_CHILD/y",
+    "/SBA/SBA_SUMMONING_EYE_COUNTER_CHILD/x",
+    "/SBA/SBA_SUMMONING_EYE_COUNTER_CHILD/y",
+    "/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/enabled",
+    "/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/x",
+    "/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/y",
+    "/SBA/options/avoidPlacingEnchantItems",
+    "/SBA/options/backpackPreviewAh",
+    "/SBA/options/hideHealthBar",
+    "/SBA/options/hidePlayersNearNPC",
+    "/SBA/options/ignoreItemFrameClicks",
+    "/SBA/options/showBackpackHoldingShift",
+    "/SBA/options/warpAdvancedMode",
+    "/SBA/skyblockAddonsMagmaTimer/enabled",
+    "/SBA/skyblockAddonsMagmaTimer/options/showOnOtherGames",
+    "/SBA/skyblockAddonsMagmaTimer/position",
+    "/SBA/skyblockAddonsMagmaTimer/x",
+    "/SBA/skyblockAddonsMagmaTimer/y",
+    "/SCOREBOARD/options/backgroundColor/chroma",
+    "/SCOREBOARD/options/backgroundColor/value",
+    "/SCROLLABLE_TOOLTIPS/enabled",
+    "/SHINY_POTS/options/coloredPotions",
+    "/SKYBLOCK/BETTERMAP_PRIMARY/options/primaryBetterMapCurrentRoomInfoScale",
+    "/SKYBLOCK/BETTERMAP_PRIMARY/options/scale",
+    "/SKYBLOCK/BETTERMAP_PRIMARY/position",
+    "/SKYBLOCK/BETTERMAP_PRIMARY/x",
+    "/SKYBLOCK/BETTERMAP_PRIMARY/y",
+    "/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/enabled",
+    "/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/position",
+    "/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/x",
+    "/SKYBLOCK/SKYBLOCK_BLAZE_SLAYER/y",
+    "/SKYBLOCK/SKYBLOCK_CHOCOLATE_FACTORY/enabled",
+    "/SKYBLOCK/SKYBLOCK_CROESUS_CHESTS/enabled",
+    "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/enabled",
+    "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/options/scale",
+    "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/position",
+    "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/x",
+    "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/y",
+    "/SKYBLOCK/SKYBLOCK_DAMAGE_SPLASH/enabled",
+    "/SKYBLOCK/SKYBLOCK_DEF_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_DEF_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_DEF_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_DEF_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/enabled",
+    "/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/position",
+    "/SKYBLOCK/SKYBLOCK_DRAGON_FEATURES/y",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/options/batHitbox",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_BAT_HELPER/options/batHitboxColor/value",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_BLOOD_CAMP_HELPER/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_HIGHLIGHT_DOORS/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_PUZZLES/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_SCORE_ALERT/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/enabled",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/position",
+    "/SKYBLOCK/SKYBLOCK_DUNGEON_TIMER/y",
+    "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/enabled",
+    "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/options/scale",
+    "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/position",
+    "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/x",
+    "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/y",
+    "/SKYBLOCK/SKYBLOCK_EXPERIMENT_SOLVERS/enabled",
+    "/SKYBLOCK/SKYBLOCK_FARMING_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_FARMING_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_FARMING_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_FISHING_MARKER/enabled",
+    "/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/enabled",
+    "/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/position",
+    "/SKYBLOCK/SKYBLOCK_GARDEN_PESTS/y",
+    "/SKYBLOCK/SKYBLOCK_GLACITE_COMMISSIONS/enabled",
+    "/SKYBLOCK/SKYBLOCK_GLACITE_COMMISSIONS/options/skipPositionKeyBind",
+    "/SKYBLOCK/SKYBLOCK_HEALTH_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_HEALTH_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_HEALTH_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_HEALTH_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_HIGHLIGHT_SPIRIT_BOW/enabled",
+    "/SKYBLOCK/SKYBLOCK_HOPPITY_EGG_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA/enabled",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA/options/kuudraAlerts",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_KUUDRA_ARMOR_STACKS_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_LIVID_SOLVER_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybind",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindAlt",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindControl",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/options/lockMouseKeybindShift",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/position",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/x",
+    "/SKYBLOCK/SKYBLOCK_LOCK_MOUSE/y",
+    "/SKYBLOCK/SKYBLOCK_MANA_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_MANA_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_MANA_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_MANA_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_NETHER_BOSS_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_POWDER_TRACKER_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_SPEED_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_SPEED_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_SPEED_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_TERMINAL_SOLVERS/enabled",
+    "/SKYBLOCK/SKYBLOCK_TERMINAL_SOLVERS/options/blockWrongTerminalClicks",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_HUD/y",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/enabled",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowBits",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowCopperDye",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowDedicationFour",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowFloweringBouquet",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowGreenBandana",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowMusicRune",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowOvergrownGrass",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/options/skyblockShowSpaceHelmet",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/position",
+    "/SKYBLOCK/SKYBLOCK_VISITOR_TRACKER_HUD/x",
+    "/SKYBLOCK/SKYBLOCK_WHISPER_TRACKER_HUD/enabled",
+    "/SKYBLOCK/SPIRIT_LEAP_OVERLAY/enabled",
+    "/SKYBLOCK/STARRED_MOB_HIGHLIGHT/enabled",
+    "/SKYBLOCK/TIERS_AS_STACK_SIZE/enabled",
+    "/SKYBLOCK/TIERS_AS_STACK_SIZE/options/itemStarsAsStack",
+    "/SKYBLOCK/TIERS_AS_STACK_SIZE/options/minionLevelAsStack",
+    "/SKYBLOCK/TIERS_AS_STACK_SIZE/options/potionLevelAsStack",
+    "/SKYBLOCK/enabled",
+    "/SKYBLOCK/options/fixLavaBobber",
+    "/SKYBLOCK/options/griffinBurrowEstimates",
+    "/SKYBLOCK/options/hideMidasStaff",
+    "/SKYBLOCK/options/highlightEndNodes",
+    "/SKYBLOCK/options/highlightGlowingMushrooms",
+    "/SKYBLOCK/options/onlyMoversOnSkyblock",
+    "/SKYBLOCK/options/showGiantHPAtFeet",
+    "/SKYBLOCK/options/showKuudraHealth",
+    "/SKYBLOCK/options/skyBlockFinishedCommissions",
+    "/SKYBLOCK/options/skyBlockMetalDetector",
+    "/SKYBLOCK/options/skyBlockMiddleClickItems",
+    "/SKYBLOCK/options/skyBlockOpenCommandsUIAlt",
+    "/SKYBLOCK/options/skyBlockOpenCommandsUIControl",
+    "/SKYBLOCK/options/skyBlockOpenCommandsUIShift",
+    "/SKYBLOCK/options/skyBlockWishingCompass",
+    "/SKYBLOCK/options/skyblockFishingHidePlayers",
+    "/SKYBLOCK/options/skyblockFishingHotspotLocator",
+    "/SKYBLOCK/options/slayerBossTimer",
+    "/SKYBLOCK/options/slayerMiniBossAlert",
+    "/SKYBLOCK/options/vampireIchorDisplay",
+    "/SKYBLOCK/options/vampireSteakDisplay",
+    "/STOPWATCH/options/backgroundColor/chroma",
+    "/STOPWATCH/options/backgroundColor/value",
+    "/STOPWATCH/position",
+    "/STOPWATCH/x",
+    "/STOPWATCH/y",
+    "/TIME_CHANGER/enabled",
+    "/TIME_CHANGER/options/horizonYLevel",
+    "/TIME_CHANGER/options/timeChangerTime",
+    "/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/options/iconMode",
+    "/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/position",
+    "/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/x",
+    "/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/y",
+    "/TOGGLE_SNEAK/options/flyBoostAmount",
+    "/TOGGLE_SNEAK/position",
+    "/TOGGLE_SNEAK/y",
+    "/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/position",
+    "/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/x",
+    "/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/y",
+    "/UHC_OVERLAY/enabled",
+    "/UHC_OVERLAY/options/goldAppleScale",
+    "/UHC_OVERLAY/options/goldIngotScale",
+    "/UHC_OVERLAY/options/goldNuggetScale",
+    "/UHC_OVERLAY/options/goldOreScale",
+    "/UHC_OVERLAY/options/skullScale",
+    "/WORLDEDIT_CUI/options/positionOneColor/value",
+    "/WORLDEDIT_CUI/options/positionTwoColor/value",
+    "/ZOOM/options/zoomKeybind",
+    "/achievements",
+    "/backgroundColor/chroma",
+    "/backgroundColor/value",
+    "/chatHeight",
+    "/emoteWheelKeybind",
+    "/mainMenuMuted",
+    "/nametag",
+    "/redString",
+    "/showInF5",
+    "/stackMessages",
+    "/toggleChat",
+    "/toggleChatAlt",
+    "/toggleChatControl",
+    "/toggleChatShift",
+    "/transparentBackground",
+    "/variableZoom",
+    "accessibilityOnboarded",
+    "advancedItemTooltips",
+    "ao",
+    "attackIndicator",
+    "autoJump",
+    "autoSuggestions",
+    "backgroundForChatOnly",
+    "biomeBlendRadius",
+    "bobView",
+    "chatBackgroundOpacity",
+    "chatColors",
+    "chatDelay",
+    "chatHeightFocused",
+    "chatHeightUnfocused",
+    "chatLineSpacing",
+    "chatLinks",
+    "chatLinksPrompt",
+    "chatOpacity",
+    "chatScale",
+    "chatVisibility",
+    "chatWidth",
+    "chunkBuilder",
+    "clouds",
+    "damageTiltStrength",
+    "darknessEffectScale",
+    "directionalAudio",
+    "discrete_mouse_scroll",
+    "enableVsync",
+    "entityDistanceScaling",
+    "entityShadows",
+    "fancyGraphics",
+    "fastRender",
+    "fov",
+    "fovEffectScale",
+    "fullscreen",
+    "fullscreenResolution",
+    "gamma",
+    "glDebugVerbosity",
+    "glintSpeed",
+    "glintStrength",
+    "graphicsMode",
+    "guiScale",
+    "heldItemTooltips",
+    "hideLightningFlashes",
+    "hideMatchedNames",
+    "hideServerAddress",
+    "highContrast",
+    "incompatibleResourcePacks",
+    "invertYMouse",
+    "key_Freelook",
+    "key_key.advancements",
+    "key_key.attack",
+    "key_key.back",
+    "key_key.chat",
+    "key_key.command",
+    "key_key.drop",
+    "key_key.forward",
+    "key_key.fullscreen",
+    "key_key.hotbar.1",
+    "key_key.hotbar.2",
+    "key_key.hotbar.3",
+    "key_key.hotbar.4",
+    "key_key.hotbar.5",
+    "key_key.hotbar.6",
+    "key_key.hotbar.7",
+    "key_key.hotbar.8",
+    "key_key.hotbar.9",
+    "key_key.inventory",
+    "key_key.jump",
+    "key_key.left",
+    "key_key.loadToolbarActivator",
+    "key_key.lunarclient.freelook",
+    "key_key.lunarclient.menu",
+    "key_key.lunarclient.toggleSprint",
+    "key_key.lunarclient.waypoint",
+    "key_key.lunarclient.zoom",
+    "key_key.pickItem",
+    "key_key.playerlist",
+    "key_key.right",
+    "key_key.saveToolbarActivator",
+    "key_key.screenshot",
+    "key_key.smoothCamera",
+    "key_key.sneak",
+    "key_key.socialInteractions",
+    "key_key.spectatorOutlines",
+    "key_key.sprint",
+    "key_key.swapOffhand",
+    "key_key.togglePerspective",
+    "key_key.use",
+    "key_of.key.zoom",
+    "lang",
+    "mainHand",
+    "maxFps",
+    "menuBackgroundBlurriness",
+    "mipmapLevels",
+    "modelPart_cape",
+    "modelPart_hat",
+    "modelPart_jacket",
+    "modelPart_left_pants_leg",
+    "modelPart_left_sleeve",
+    "modelPart_right_pants_leg",
+    "modelPart_right_sleeve",
+    "monochromeLogo",
+    "mouseSensitivity",
+    "mouseWheelSensitivity",
+    "narrator",
+    "notificationDisplayTime",
+    "onlyShowSecureChat",
+    "operatorItemsTab",
+    "overrideHeight",
+    "overrideWidth",
+    "panoramaScrollSpeed",
+    "particles",
+    "pauseOnLostFocus",
+    "prioritizeChunkUpdates",
+    "rawMouseInput",
+    "realmsNotifications",
+    "reducedDebugInfo",
+    "renderClouds",
+    "renderDistance",
+    "resourcePacks",
+    "screenEffectScale",
+    "showAutosaveIndicator",
+    "showSubtitles",
+    "simulationDistance",
+    "skipMultiplayerWarning",
+    "skipRealms32bitWarning",
+    "soundCategory_ambient",
+    "soundCategory_block",
+    "soundCategory_hostile",
+    "soundCategory_master",
+    "soundCategory_music",
+    "soundCategory_neutral",
+    "soundCategory_player",
+    "soundCategory_record",
+    "soundCategory_ui",
+    "soundCategory_voice",
+    "soundCategory_weather",
+    "syncChunkWrites",
+    "textBackgroundOpacity",
+    "toggleCrouch",
+    "toggleSprint",
+    "touchscreen",
+    "tutorialStep",
+    "useNativeTransport",
+    "useVbo",
+];
 const MAX_VALUE_BYTES: usize = 64 * 1024;
 const MAX_VALUE_DEPTH: usize = 16;
 const CHECKSUM_BYTES: usize = 32;
@@ -54,7 +670,7 @@ struct WireEnvelope {
     created_at: String,
     application_version: String,
     metadata: ShareMetadata,
-    #[serde(deserialize_with = "deserialize_settings")]
+    #[serde(deserialize_with = "deserialize_list")]
     settings: Vec<WireSetting>,
 }
 
@@ -69,12 +685,163 @@ struct WireSetting {
     value: Value,
 }
 
-fn deserialize_settings<'de, D: serde::Deserializer<'de>>(
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CompactEnvelope {
+    format_version: u32,
+    timestamp: i64,
+    application_version: String,
+    minecraft_version: Option<String>,
+    lunar_version: Option<String>,
+    platform: u8,
+    #[serde(deserialize_with = "deserialize_groups")]
+    groups: Vec<CompactGroup>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CompactGroup {
+    kind: u8,
+    profile: u16,
+    #[serde(deserialize_with = "deserialize_list")]
+    settings: Vec<CompactSetting>,
+}
+
+#[derive(Clone, Debug)]
+struct CompactSetting {
+    dictionary: Option<u16>,
+    prefix: u16,
+    pointer: String,
+    value: Value,
+}
+
+impl Serialize for CompactSetting {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut sequence =
+            serializer.serialize_seq(Some(if self.dictionary.is_some() || self.prefix == 0 {
+                2
+            } else {
+                3
+            }))?;
+        if let Some(index) = self.dictionary {
+            sequence.serialize_element(&(-1 - i32::from(index)))?;
+        } else {
+            if self.prefix != 0 {
+                sequence.serialize_element(&self.prefix)?;
+            }
+            sequence.serialize_element(&self.pointer)?;
+        }
+        sequence.serialize_element(&self.value)?;
+        sequence.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for CompactSetting {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum PointerStart {
+            Full(String),
+            Prefix(u16),
+        }
+        impl<'de> Deserialize<'de> for PointerStart {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                struct PointerVisitor;
+                impl Visitor<'_> for PointerVisitor {
+                    type Value = PointerStart;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("a bounded pointer or prefix length")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+                        if value.len() > 512 {
+                            return Err(E::custom("pointer limit exceeded"));
+                        }
+                        Ok(PointerStart::Full(value.to_string()))
+                    }
+
+                    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
+                        if value >= 0 {
+                            return self.visit_u64(value as u64);
+                        }
+                        let index = value
+                            .checked_neg()
+                            .and_then(|index| index.checked_sub(1))
+                            .and_then(|index| usize::try_from(index).ok())
+                            .ok_or_else(|| E::custom("invalid dictionary index"))?;
+                        let pointer = POINTER_DICTIONARY
+                            .get(index)
+                            .ok_or_else(|| E::custom("unknown dictionary index"))?;
+                        Ok(PointerStart::Full((*pointer).to_string()))
+                    }
+
+                    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
+                        if !(1..=512).contains(&value) {
+                            return Err(E::custom("invalid pointer prefix"));
+                        }
+                        Ok(PointerStart::Prefix(value as u16))
+                    }
+                }
+                deserializer.deserialize_any(PointerVisitor)
+            }
+        }
+        struct Scalar(Value);
+        impl<'de> Deserialize<'de> for Scalar {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                deserialize_scalar(deserializer).map(Self)
+            }
+        }
+        struct SettingVisitor;
+        impl<'de> Visitor<'de> for SettingVisitor {
+            type Value = CompactSetting;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a compact scalar setting")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(
+                self,
+                mut sequence: A,
+            ) -> Result<Self::Value, A::Error> {
+                let start = sequence
+                    .next_element::<PointerStart>()?
+                    .ok_or_else(|| de::Error::custom("missing pointer"))?;
+                let (prefix, pointer) = match start {
+                    PointerStart::Full(pointer) => (0, pointer),
+                    PointerStart::Prefix(prefix) => {
+                        let pointer = sequence
+                            .next_element::<String>()?
+                            .ok_or_else(|| de::Error::custom("missing pointer suffix"))?;
+                        if pointer.len() > 512 {
+                            return Err(de::Error::custom("pointer limit exceeded"));
+                        }
+                        (prefix, pointer)
+                    }
+                };
+                let value = sequence
+                    .next_element::<Scalar>()?
+                    .ok_or_else(|| de::Error::custom("missing setting value"))?
+                    .0;
+                if sequence.next_element::<de::IgnoredAny>()?.is_some() {
+                    return Err(de::Error::custom("unexpected setting field"));
+                }
+                Ok(CompactSetting {
+                    dictionary: None,
+                    prefix,
+                    pointer,
+                    value,
+                })
+            }
+        }
+        deserializer.deserialize_seq(SettingVisitor)
+    }
+}
+
+fn deserialize_list<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
     deserializer: D,
-) -> Result<Vec<WireSetting>, D::Error> {
-    struct SettingsVisitor;
-    impl<'de> Visitor<'de> for SettingsVisitor {
-        type Value = Vec<WireSetting>;
+) -> Result<Vec<T>, D::Error> {
+    struct SettingsVisitor<T>(PhantomData<T>);
+    impl<'de, T: Deserialize<'de>> Visitor<'de> for SettingsVisitor<T> {
+        type Value = Vec<T>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
             formatter.write_str("a bounded array of settings")
@@ -89,7 +856,7 @@ fn deserialize_settings<'de, D: serde::Deserializer<'de>>(
             }
             let mut settings =
                 Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAX_SETTINGS));
-            while let Some(setting) = sequence.next_element::<WireSetting>()? {
+            while let Some(setting) = sequence.next_element::<T>()? {
                 if settings.len() >= MAX_SETTINGS {
                     return Err(de::Error::custom("setting count limit exceeded"));
                 }
@@ -98,7 +865,42 @@ fn deserialize_settings<'de, D: serde::Deserializer<'de>>(
             Ok(settings)
         }
     }
-    deserializer.deserialize_seq(SettingsVisitor)
+    deserializer.deserialize_seq(SettingsVisitor(PhantomData))
+}
+
+fn deserialize_groups<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<CompactGroup>, D::Error> {
+    struct GroupsVisitor;
+    impl<'de> Visitor<'de> for GroupsVisitor {
+        type Value = Vec<CompactGroup>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("bounded setting groups")
+        }
+
+        fn visit_seq<A: SeqAccess<'de>>(self, mut sequence: A) -> Result<Self::Value, A::Error> {
+            if sequence
+                .size_hint()
+                .is_some_and(|length| length > MAX_SETTINGS)
+            {
+                return Err(de::Error::custom("group count limit exceeded"));
+            }
+            let mut groups =
+                Vec::with_capacity(sequence.size_hint().unwrap_or(0).min(MAX_SETTINGS));
+            let mut count = 0;
+            while let Some(group) = sequence.next_element::<CompactGroup>()? {
+                count += group.settings.len();
+                if group.settings.is_empty() || count > MAX_SETTINGS || groups.len() >= MAX_SETTINGS
+                {
+                    return Err(de::Error::custom("setting count limit exceeded"));
+                }
+                groups.push(group);
+            }
+            Ok(groups)
+        }
+    }
+    deserializer.deserialize_seq(GroupsVisitor)
 }
 
 fn deserialize_scalar<'de, D: serde::Deserializer<'de>>(
@@ -195,6 +997,154 @@ impl From<WireEnvelope> for ShareEnvelope {
     }
 }
 
+impl TryFrom<&ShareEnvelope> for CompactEnvelope {
+    type Error = String;
+
+    fn try_from(envelope: &ShareEnvelope) -> Result<Self, Self::Error> {
+        let timestamp = DateTime::parse_from_rfc3339(&envelope.created_at)
+            .map_err(|_| "These settings could not be encoded.".to_string())?
+            .timestamp();
+        let platform = match envelope.metadata.platform.as_str() {
+            "windows" => 0,
+            "macos" => 1,
+            "linux" => 2,
+            _ => return Err(UNSAFE_SETTINGS.to_string()),
+        };
+        let mut groups = BTreeMap::<(u8, u16), Vec<CompactSetting>>::new();
+        for setting in &envelope.settings {
+            let kind = kind_code(&setting.source, &setting.file_kind)
+                .ok_or_else(|| UNSAFE_SETTINGS.to_string())?;
+            if !valid_anonymous_profile(&setting.profile) {
+                return Err(UNSAFE_SETTINGS.to_string());
+            }
+            let profile = setting
+                .profile
+                .strip_prefix("profile-")
+                .unwrap()
+                .parse::<u16>()
+                .map_err(|_| UNSAFE_SETTINGS.to_string())?;
+            groups
+                .entry((kind, profile))
+                .or_default()
+                .push(CompactSetting {
+                    dictionary: None,
+                    prefix: 0,
+                    pointer: setting.pointer.clone(),
+                    value: setting.value.clone(),
+                });
+        }
+        let groups = groups
+            .into_iter()
+            .map(|((kind, profile), mut settings)| {
+                settings.sort_by(|left, right| left.pointer.cmp(&right.pointer));
+                CompactGroup {
+                    kind,
+                    profile,
+                    settings,
+                }
+            })
+            .collect();
+        Ok(Self {
+            format_version: envelope.format_version,
+            timestamp,
+            application_version: envelope.application_version.clone(),
+            minecraft_version: envelope.metadata.minecraft_version.clone(),
+            lunar_version: envelope.metadata.lunar_version.clone(),
+            platform,
+            groups,
+        })
+    }
+}
+
+impl TryFrom<CompactEnvelope> for ShareEnvelope {
+    type Error = ();
+
+    fn try_from(envelope: CompactEnvelope) -> Result<Self, Self::Error> {
+        let created_at = DateTime::from_timestamp(envelope.timestamp, 0)
+            .ok_or(())?
+            .to_rfc3339_opts(SecondsFormat::Secs, true);
+        let platform = match envelope.platform {
+            0 => "windows",
+            1 => "macos",
+            2 => "linux",
+            _ => return Err(()),
+        }
+        .to_string();
+        let mut settings = Vec::new();
+        let mut groups = BTreeSet::new();
+        for group in envelope.groups {
+            if group.profile == 0
+                || group.profile as usize > MAX_SETTINGS
+                || !groups.insert((group.kind, group.profile))
+            {
+                return Err(());
+            }
+            let (source, file_kind) = decode_kind(group.kind).ok_or(())?;
+            let profile = format!("profile-{}", group.profile);
+            let mut previous = String::new();
+            for setting in group.settings {
+                let prefix = setting.prefix as usize;
+                if prefix > previous.len() || !previous.is_char_boundary(prefix) {
+                    return Err(());
+                }
+                let pointer = if prefix == 0 {
+                    setting.pointer
+                } else {
+                    format!("{}{}", &previous[..prefix], setting.pointer)
+                };
+                if pointer.len() > 512 {
+                    return Err(());
+                }
+                previous = pointer.clone();
+                settings.push(Setting {
+                    id: String::new(),
+                    label: String::new(),
+                    source: source.to_string(),
+                    category: String::new(),
+                    group: String::new(),
+                    file_kind: file_kind.to_string(),
+                    profile: profile.clone(),
+                    pointer,
+                    value: setting.value,
+                });
+            }
+        }
+        Ok(Self {
+            format_version: envelope.format_version,
+            created_at,
+            application_version: envelope.application_version,
+            metadata: ShareMetadata {
+                minecraft_version: envelope.minecraft_version,
+                lunar_version: envelope.lunar_version,
+                platform,
+            },
+            settings,
+        })
+    }
+}
+
+fn kind_code(source: &str, file_kind: &str) -> Option<u8> {
+    match (source, file_kind) {
+        ("minecraft", "options") => Some(0),
+        ("lunar", "mods") => Some(1),
+        ("lunar", "general") => Some(2),
+        ("lunar", "controls") => Some(3),
+        ("lunar", "performance") => Some(4),
+        _ => None,
+    }
+}
+
+fn decode_kind(kind: u8) -> Option<(&'static str, &'static str)> {
+    match kind {
+        0 => Some(("minecraft", "options")),
+        1 => Some(("lunar", "mods")),
+        2 => Some(("lunar", "general")),
+        3 => Some(("lunar", "controls")),
+        4 => Some(("lunar", "performance")),
+        _ => None,
+    }
+}
+
 pub fn encode(
     settings: Vec<Setting>,
     mut metadata: ShareMetadata,
@@ -218,7 +1168,7 @@ pub fn encode(
     validate_metadata(&metadata).map_err(|_| UNSAFE_SETTINGS.to_string())?;
     let settings = prepare_settings(settings)?;
     let envelope = ShareEnvelope {
-        format_version: 1,
+        format_version: 2,
         created_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         application_version: env!("CARGO_PKG_VERSION").to_string(),
         metadata,
@@ -276,14 +1226,15 @@ fn prepare_settings(settings: Vec<Setting>) -> Result<Vec<Setting>, String> {
 }
 
 fn encode_envelope(envelope: &ShareEnvelope) -> Result<EncodingResult, String> {
-    let serialized = rmp_serde::to_vec(&WireEnvelope::from(envelope))
-        .map_err(|_| "These settings could not be encoded.".to_string())?;
-    if serialized.len() > MAX_UNCOMPRESSED_BYTES {
-        return Err("This selection is too large for a share code.".to_string());
-    }
-    let compressed = zstd::stream::encode_all(Cursor::new(&serialized), 3)
-        .map_err(|_| "These settings could not be compressed.".to_string())?;
-    let code = frame_payload(&compressed);
+    let compact = CompactEnvelope::try_from(envelope)?;
+    let dictionary = serialize_compact(&dictionary_pointers(compact.clone()))?;
+    let plain = serialize_compact(&compact)?;
+    let prefixed = serialize_compact(&prefix_pointers(compact))?;
+    let (serialized, compressed) = [dictionary, plain, prefixed]
+        .into_iter()
+        .min_by_key(|(_, compressed)| compressed.len())
+        .unwrap();
+    let code = frame_payload(PREFIX, &compressed);
     if code.len() > MAX_CODE_BYTES {
         return Err("This selection is too large for a share code.".to_string());
     }
@@ -295,18 +1246,77 @@ fn encode_envelope(envelope: &ShareEnvelope) -> Result<EncodingResult, String> {
     })
 }
 
-fn frame_payload(compressed: &[u8]) -> String {
+fn serialize_compact(envelope: &CompactEnvelope) -> Result<(Vec<u8>, Vec<u8>), String> {
+    let serialized = rmp_serde::to_vec(envelope)
+        .map_err(|_| "These settings could not be encoded.".to_string())?;
+    if serialized.len() > MAX_UNCOMPRESSED_BYTES {
+        return Err("This selection is too large for a share code.".to_string());
+    }
+    let compressed = compress_compact(&serialized)
+        .map_err(|_| "These settings could not be compressed.".to_string())?;
+    Ok((serialized, compressed))
+}
+
+fn dictionary_pointers(mut envelope: CompactEnvelope) -> CompactEnvelope {
+    for group in &mut envelope.groups {
+        for setting in &mut group.settings {
+            if let Ok(index) = POINTER_DICTIONARY.binary_search(&setting.pointer.as_str()) {
+                setting.dictionary = Some(index as u16);
+            }
+        }
+    }
+    envelope
+}
+
+fn prefix_pointers(mut envelope: CompactEnvelope) -> CompactEnvelope {
+    for group in &mut envelope.groups {
+        let mut previous = String::new();
+        for setting in &mut group.settings {
+            let full = setting.pointer.clone();
+            let mut prefix = previous
+                .bytes()
+                .zip(full.bytes())
+                .take_while(|(left, right)| left == right)
+                .count();
+            while !full.is_char_boundary(prefix) {
+                prefix -= 1;
+            }
+            if prefix >= 3 {
+                setting.prefix = prefix as u16;
+                setting.pointer = full[prefix..].to_string();
+            }
+            previous = full;
+        }
+    }
+    envelope
+}
+
+fn compress_compact(serialized: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut reader = brotli::CompressorReader::new(Cursor::new(serialized), 4096, 11, 22);
+    let mut compressed = Vec::new();
+    reader.read_to_end(&mut compressed)?;
+    Ok(compressed)
+}
+
+fn frame_payload(prefix: &str, compressed: &[u8]) -> String {
     let mut framed = Vec::with_capacity(CHECKSUM_BYTES + compressed.len());
     framed.extend_from_slice(&Sha256::digest(compressed));
     framed.extend_from_slice(compressed);
-    format!("{PREFIX}{}", URL_SAFE_NO_PAD.encode(framed))
+    format!("{prefix}{}", URL_SAFE_NO_PAD.encode(framed))
 }
 
 fn decode_checked(code: &str) -> Result<ShareEnvelope, ()> {
     if code.len() > MAX_CODE_BYTES {
         return Err(());
     }
-    let encoded = code.trim().strip_prefix(PREFIX).ok_or(())?;
+    let code = code.trim();
+    let (version, encoded) = if let Some(encoded) = code.strip_prefix(PREFIX) {
+        (2, encoded)
+    } else if let Some(encoded) = code.strip_prefix(LEGACY_PREFIX) {
+        (1, encoded)
+    } else {
+        return Err(());
+    };
     if encoded.is_empty()
         || !encoded
             .bytes()
@@ -322,24 +1332,96 @@ fn decode_checked(code: &str) -> Result<ShareEnvelope, ()> {
     if checksum != Sha256::digest(compressed).as_slice() {
         return Err(());
     }
-    let mut decoder = zstd::stream::read::Decoder::new(Cursor::new(compressed)).map_err(|_| ())?;
-    decoder.window_log_max(23).map_err(|_| ())?;
     let mut serialized = Vec::new();
-    decoder
-        .take((MAX_UNCOMPRESSED_BYTES + 1) as u64)
-        .read_to_end(&mut serialized)
-        .map_err(|_| ())?;
+    if version == 1 {
+        let mut decoder =
+            zstd::stream::read::Decoder::new(Cursor::new(compressed)).map_err(|_| ())?;
+        decoder.window_log_max(23).map_err(|_| ())?;
+        decoder
+            .take((MAX_UNCOMPRESSED_BYTES + 1) as u64)
+            .read_to_end(&mut serialized)
+            .map_err(|_| ())?;
+    } else {
+        serialized = decompress_compact(compressed)?;
+    }
     if serialized.is_empty() || serialized.len() > MAX_UNCOMPRESSED_BYTES {
         return Err(());
     }
     let mut deserializer = rmp_serde::Deserializer::new(Cursor::new(&serialized));
     deserializer.set_max_depth(32);
-    let wire_envelope = WireEnvelope::deserialize(&mut deserializer).map_err(|_| ())?;
+    let envelope = if version == 1 {
+        ShareEnvelope::from(WireEnvelope::deserialize(&mut deserializer).map_err(|_| ())?)
+    } else {
+        ShareEnvelope::try_from(CompactEnvelope::deserialize(&mut deserializer).map_err(|_| ())?)?
+    };
     if deserializer.position() != serialized.len() as u64 {
         return Err(());
     }
-    let mut envelope = ShareEnvelope::from(wire_envelope);
-    if envelope.format_version != 1
+    validate_envelope(envelope, version)
+}
+
+fn decompress_compact(compressed: &[u8]) -> Result<Vec<u8>, ()> {
+    if brotli_window_bits(*compressed.first().ok_or(())?).is_none_or(|bits| bits > 23) {
+        return Err(());
+    }
+    let mut state = brotli::BrotliState::new(
+        brotli::enc::StandardAlloc::default(),
+        brotli::enc::StandardAlloc::default(),
+        brotli::enc::StandardAlloc::default(),
+    );
+    let mut available_in = compressed.len();
+    let mut input_offset = 0;
+    let mut total_out = 0;
+    let mut serialized = Vec::new();
+    let mut output = [0_u8; 16 * 1024];
+    loop {
+        let mut available_out = output.len();
+        let mut output_offset = 0;
+        let result = brotli::BrotliDecompressStream(
+            &mut available_in,
+            &mut input_offset,
+            compressed,
+            &mut available_out,
+            &mut output_offset,
+            &mut output,
+            &mut total_out,
+            &mut state,
+        );
+        if serialized.len() + output_offset > MAX_UNCOMPRESSED_BYTES {
+            return Err(());
+        }
+        serialized.extend_from_slice(&output[..output_offset]);
+        match result {
+            brotli::BrotliResult::ResultSuccess => {
+                return if available_in == 0 && input_offset == compressed.len() {
+                    Ok(serialized)
+                } else {
+                    Err(())
+                };
+            }
+            brotli::BrotliResult::NeedsMoreOutput => {}
+            _ => return Err(()),
+        }
+    }
+}
+
+fn brotli_window_bits(first: u8) -> Option<u8> {
+    if first & 1 == 0 {
+        return Some(16);
+    }
+    let bits = (first >> 1) & 7;
+    if bits != 0 {
+        return Some(17 + bits);
+    }
+    match (first >> 4) & 7 {
+        0 => Some(17),
+        1 => None,
+        bits => Some(8 + bits),
+    }
+}
+
+fn validate_envelope(mut envelope: ShareEnvelope, version: u32) -> Result<ShareEnvelope, ()> {
+    if envelope.format_version != version
         || envelope.settings.is_empty()
         || envelope.settings.len() > MAX_SETTINGS
         || envelope.created_at.len() > 64
@@ -364,6 +1446,9 @@ fn decode_checked(code: &str) -> Result<ShareEnvelope, ()> {
         setting.category = canonical.category;
         setting.group = canonical.group;
     }
+    envelope
+        .settings
+        .sort_by(|left, right| left.id.cmp(&right.id));
     Ok(envelope)
 }
 
@@ -560,6 +1645,17 @@ mod tests {
         decode(&encode(vec![fixture()], metadata()).unwrap().code).unwrap()
     }
 
+    fn legacy_code(envelope: &ShareEnvelope) -> String {
+        let serialized = rmp_serde::to_vec(&WireEnvelope::from(envelope)).unwrap();
+        let compressed = zstd::stream::encode_all(Cursor::new(serialized), 3).unwrap();
+        frame_payload(LEGACY_PREFIX, &compressed)
+    }
+
+    fn compact_code(envelope: &CompactEnvelope) -> String {
+        let serialized = rmp_serde::to_vec(envelope).unwrap();
+        frame_payload(PREFIX, &compress_compact(&serialized).unwrap())
+    }
+
     #[test]
     fn round_trip_preserves_safe_settings_and_removes_local_identity() {
         let result = encode(vec![fixture()], metadata()).unwrap();
@@ -591,13 +1687,13 @@ mod tests {
     #[test]
     fn future_envelope_versions_and_trailing_data_are_rejected() {
         let mut envelope = envelope();
-        envelope.format_version = 2;
+        envelope.format_version = 3;
         assert!(decode(&encode_envelope(&envelope).unwrap().code).is_err());
         envelope.format_version = 1;
         let mut serialized = rmp_serde::to_vec(&WireEnvelope::from(&envelope)).unwrap();
         serialized.extend_from_slice(b"unexpected");
         let compressed = zstd::stream::encode_all(Cursor::new(serialized), 3).unwrap();
-        assert!(decode(&frame_payload(&compressed)).is_err());
+        assert!(decode(&frame_payload(LEGACY_PREFIX, &compressed)).is_err());
     }
 
     #[test]
@@ -628,7 +1724,7 @@ mod tests {
     fn decompression_bombs_are_rejected() {
         let compressed =
             zstd::stream::encode_all(Cursor::new(vec![0; MAX_UNCOMPRESSED_BYTES + 1]), 3).unwrap();
-        assert!(decode(&frame_payload(&compressed)).is_err());
+        assert!(decode(&frame_payload(LEGACY_PREFIX, &compressed)).is_err());
     }
 
     #[test]
@@ -639,7 +1735,9 @@ mod tests {
         let mut envelope = envelope();
         envelope.settings[0].profile = "player-name".to_string();
         envelope.settings[0].id = anonymous_id(&envelope.settings[0]);
-        assert!(decode(&encode_envelope(&envelope).unwrap().code).is_err());
+        assert!(encode_envelope(&envelope).is_err());
+        envelope.format_version = 1;
+        assert!(decode(&legacy_code(&envelope)).is_err());
     }
 
     #[test]
@@ -677,5 +1775,219 @@ mod tests {
         envelope.settings[0].value = json!("0.5");
         envelope.settings = vec![envelope.settings[0].clone(); MAX_SETTINGS + 1];
         assert!(decode(&encode_envelope(&envelope).unwrap().code).is_err());
+    }
+
+    #[test]
+    fn legacy_codes_keep_decoding_with_the_same_setting_values() {
+        let mut original = envelope();
+        original.format_version = 1;
+        original.created_at = "2026-09-30T00:00:00Z".to_string();
+        original.application_version = "0.1.0".to_string();
+        let golden = "PRS1:cSLB5gWkb6dPd0ISCWOSXgjN7dDo4iZpZXLNLvFNjA0otS_9AFiRAgCVAbQyMDI2LTA5LTMwVDAwOjAwOjAwWqUwLjEuMJOmMS4yMS40wKVtYWNvc5GVqW1pbmVjcmFmdKdvcHRpb25zqXByb2ZpbGUtMaNmb3ajMC41";
+        assert_eq!(decode(golden).unwrap(), original);
+        let decoded = decode(&legacy_code(&original)).unwrap();
+        assert_eq!(decoded, original);
+        let modern = decode(&encode(decoded.settings, decoded.metadata).unwrap().code).unwrap();
+        assert_eq!(modern.format_version, 2);
+        assert_eq!(modern.settings[0].value, json!("0.5"));
+    }
+
+    #[test]
+    fn compact_groups_reject_unknown_ids_duplicates_and_invalid_profiles() {
+        let original = CompactEnvelope::try_from(&envelope()).unwrap();
+        let mut candidate = original.clone();
+        candidate.platform = 3;
+        assert!(decode(&compact_code(&candidate)).is_err());
+        candidate = original.clone();
+        candidate.groups[0].kind = 255;
+        assert!(decode(&compact_code(&candidate)).is_err());
+        for profile in [0, MAX_SETTINGS as u16 + 1] {
+            candidate = original.clone();
+            candidate.groups[0].profile = profile;
+            assert!(decode(&compact_code(&candidate)).is_err());
+        }
+        candidate = original.clone();
+        candidate.groups.push(candidate.groups[0].clone());
+        assert!(decode(&compact_code(&candidate)).is_err());
+        candidate = original.clone();
+        candidate.groups[0].settings.clear();
+        assert!(decode(&compact_code(&candidate)).is_err());
+        candidate = original.clone();
+        candidate.timestamp = i64::MAX;
+        assert!(decode(&compact_code(&candidate)).is_err());
+    }
+
+    #[test]
+    fn compact_format_preserves_numeric_strings_integer_colors_and_floats() {
+        let mut minecraft = fixture();
+        minecraft.value = json!("0.50");
+        let mut lunar = fixture();
+        lunar.source = "lunar".to_string();
+        lunar.file_kind = "general".to_string();
+        lunar.pointer = "/backgroundColor/value".to_string();
+        lunar.value = json!(-16777216_i64);
+        let mut coordinate = lunar.clone();
+        coordinate.file_kind = "mods".to_string();
+        coordinate.pointer = "/FPS/x".to_string();
+        coordinate.value = json!(0.15000000000000002_f64);
+        let mut numeric_string = lunar.clone();
+        numeric_string.file_kind = "mods".to_string();
+        numeric_string.pointer = "/CROSSHAIR/options/crosshairGap".to_string();
+        numeric_string.value = json!("2.50");
+        let selected = vec![minecraft, lunar, coordinate, numeric_string];
+        let decoded = decode(&encode(selected.clone(), metadata()).unwrap().code).unwrap();
+        for setting in &decoded.settings {
+            let expected = selected
+                .iter()
+                .find(|item| item.pointer == setting.pointer && item.source == setting.source)
+                .unwrap();
+            assert_eq!(setting.value, expected.value);
+        }
+        assert!(decoded
+            .settings
+            .iter()
+            .find(|setting| setting.pointer == "/backgroundColor/value")
+            .unwrap()
+            .value
+            .as_i64()
+            .is_some());
+    }
+
+    #[test]
+    fn compact_total_count_is_bounded_across_individually_valid_groups() {
+        let mut candidate = CompactEnvelope::try_from(&envelope()).unwrap();
+        candidate.groups[0].settings = vec![candidate.groups[0].settings[0].clone(); MAX_SETTINGS];
+        let mut second = candidate.groups[0].clone();
+        second.profile = 2;
+        second.settings.truncate(1);
+        candidate.groups.push(second);
+        assert!(decode(&compact_code(&candidate)).is_err());
+    }
+
+    #[test]
+    fn brotli_window_bombs_and_trailing_compressed_data_are_rejected() {
+        for (header, expected) in [
+            (0, Some(16)),
+            (1, Some(17)),
+            (3, Some(18)),
+            (13, Some(23)),
+            (15, Some(24)),
+            (0x11, None),
+            (0x21, Some(10)),
+            (0x71, Some(15)),
+        ] {
+            assert_eq!(brotli_window_bits(header), expected);
+        }
+        assert!(decode(&frame_payload(PREFIX, &[15])).is_err());
+        assert!(decode(&frame_payload(PREFIX, &[0x11, 0x1e])).is_err());
+        let mut compressed = Vec::new();
+        brotli::CompressorReader::new(
+            Cursor::new(vec![0; MAX_UNCOMPRESSED_BYTES + 1]),
+            4096,
+            1,
+            22,
+        )
+        .read_to_end(&mut compressed)
+        .unwrap();
+        assert!(decode(&frame_payload(PREFIX, &compressed)).is_err());
+        let serialized =
+            rmp_serde::to_vec(&CompactEnvelope::try_from(&envelope()).unwrap()).unwrap();
+        let mut compressed = compress_compact(&serialized).unwrap();
+        compressed.extend_from_slice(b"trailing compressed data");
+        assert!(decode(&frame_payload(PREFIX, &compressed)).is_err());
+        let mut serialized = serialized;
+        serialized.extend_from_slice(b"trailing uncompressed data");
+        assert!(decode(&frame_payload(
+            PREFIX,
+            &compress_compact(&serialized).unwrap()
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn pointer_prefixes_restore_values_and_reject_invalid_boundaries() {
+        let settings = [
+            ("/FPS/enabled", json!(true)),
+            ("/FPS/x", json!(0.25)),
+            ("/FPS/y", json!(-0.6)),
+            ("/CPS/enabled", json!(false)),
+        ]
+        .into_iter()
+        .map(|(pointer, value)| {
+            let mut setting = fixture();
+            setting.source = "lunar".to_string();
+            setting.file_kind = "mods".to_string();
+            setting.pointer = pointer.to_string();
+            setting.value = value;
+            setting
+        })
+        .collect::<Vec<_>>();
+        let decoded = decode(&encode(settings, metadata()).unwrap().code).unwrap();
+        let compact = CompactEnvelope::try_from(&decoded).unwrap();
+        let prefixed = prefix_pointers(compact.clone());
+        assert!(prefixed.groups[0]
+            .settings
+            .iter()
+            .any(|setting| setting.prefix > 0));
+        assert_eq!(decode(&compact_code(&prefixed)).unwrap(), decoded);
+        let plain = serialize_compact(&compact).unwrap();
+        let smaller = serialize_compact(&prefixed).unwrap();
+        let encoded = encode_envelope(&decoded).unwrap();
+        let dictionary = serialize_compact(&dictionary_pointers(compact)).unwrap();
+        assert_eq!(
+            encoded.compressed_bytes,
+            plain.1.len().min(smaller.1.len()).min(dictionary.1.len())
+        );
+        let mut invalid = prefixed.clone();
+        invalid.groups[0].settings[0].prefix = 1;
+        assert!(decode(&compact_code(&invalid)).is_err());
+        invalid = prefixed.clone();
+        invalid.groups[0].settings[1].prefix = 512;
+        assert!(decode(&compact_code(&invalid)).is_err());
+        invalid = prefixed.clone();
+        invalid.groups[0].settings[0].pointer = "/é/x".to_string();
+        invalid.groups[0].settings[1].prefix = 2;
+        assert!(ShareEnvelope::try_from(invalid).is_err());
+    }
+
+    #[test]
+    fn version_two_dictionary_is_frozen_independently_of_the_scanner_schema() {
+        assert_eq!(POINTER_DICTIONARY.len(), 611);
+        let mut digest = Sha256::new();
+        for pointer in POINTER_DICTIONARY {
+            digest.update(pointer.as_bytes());
+            digest.update(b"\n");
+        }
+        let fingerprint = digest
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(
+            fingerprint,
+            "099b6870a9e420ca9d116422548c26524845439e4fccc7eb916a25485bdd38a5"
+        );
+        assert_eq!(POINTER_DICTIONARY[0], "/3D_SKINS/enabled");
+        assert_eq!(POINTER_DICTIONARY[497], "fov");
+        assert_eq!(POINTER_DICTIONARY[108], "/FPS/x");
+        assert_eq!(POINTER_DICTIONARY[POINTER_DICTIONARY.len() - 1], "useVbo");
+    }
+
+    #[test]
+    fn dictionary_indices_rebuild_full_pointers_and_remain_allowlisted() {
+        let compact = CompactEnvelope::try_from(&envelope()).unwrap();
+        let mut dictionary = dictionary_pointers(compact);
+        assert!(dictionary.groups[0].settings[0].dictionary.is_some());
+        assert_eq!(
+            decode(&compact_code(&dictionary)).unwrap().settings[0].pointer,
+            "fov"
+        );
+        dictionary.groups[0].settings[0].dictionary = Some(POINTER_DICTIONARY.len() as u16);
+        assert!(decode(&compact_code(&dictionary)).is_err());
+        dictionary.groups[0].settings[0].dictionary =
+            Some(POINTER_DICTIONARY.binary_search(&"/FPS/x").unwrap() as u16);
+        assert!(decode(&compact_code(&dictionary)).is_err());
+        dictionary.groups[0].settings[0].dictionary = Some(u16::MAX);
+        assert!(decode(&compact_code(&dictionary)).is_err());
     }
 }
