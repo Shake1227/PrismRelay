@@ -101,7 +101,15 @@ try {
   if (Test-Path $uninstaller) {
     Invoke-Installer $uninstaller "/S _?=$nsisDirectory" 'Setup uninstallation'
     Assert-AppRemoved $nsisDirectory
-    Remove-Item -LiteralPath $uninstaller -Force
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    while (Test-Path -LiteralPath $uninstaller) {
+      try {
+        Remove-Item -LiteralPath $uninstaller -Force -ErrorAction Stop
+      } catch {
+        if ([DateTime]::UtcNow -ge $deadline) { throw }
+        Start-Sleep -Milliseconds 250
+      }
+    }
     if (-not (Get-ChildItem -LiteralPath $nsisDirectory -Force)) {
       Remove-Item -LiteralPath $nsisDirectory
     }
