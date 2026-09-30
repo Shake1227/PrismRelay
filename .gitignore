@@ -19,3 +19,5 @@ userdata/
 *.pfx
 *.mobileprovision
 .vscode/
+src-tauri/gen/
+*.tsbuildinfo
