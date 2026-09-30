@@ -24,6 +24,9 @@ export async function decodeQrPixels(
     RGBLuminanceSource,
     QRCodeReader,
     DecodeHintType,
+    NotFoundException,
+    FormatException,
+    ChecksumException,
   } = await import("@zxing/library");
   const pixels = new Uint8ClampedArray(width * height);
   for (let i = 0; i < pixels.length; i++) {
@@ -37,10 +40,25 @@ export async function decodeQrPixels(
   const image = new BinaryBitmap(
     new HybridBinarizer(new RGBLuminanceSource(pixels, width, height)),
   );
-  const result = new QRCodeReader().decode(
-    image,
-    new Map([[DecodeHintType.TRY_HARDER, true]]),
-  );
+  const reader = new QRCodeReader();
+  let result;
+  try {
+    result = reader.decode(image, new Map([[DecodeHintType.TRY_HARDER, true]]));
+  } catch (error) {
+    if (
+      !(error instanceof NotFoundException) &&
+      !(error instanceof FormatException) &&
+      !(error instanceof ChecksumException)
+    )
+      throw error;
+    result = reader.decode(
+      image,
+      new Map([
+        [DecodeHintType.TRY_HARDER, true],
+        [DecodeHintType.PURE_BARCODE, true],
+      ]),
+    );
+  }
   return qrShareCode(result.getText());
 }
 

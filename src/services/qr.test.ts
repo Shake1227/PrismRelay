@@ -34,4 +34,31 @@ describe("QR share-code reading", () => {
     ).rejects.toThrow();
     expect(qrShareCode("  PRS1:example\n")).toBe("PRS1:example");
   });
+  it("reads a fixed legacy share code rendered at the exported PNG size", async () => {
+    const code =
+      "PRS1:cSLB5gWkb6dPd0ISCWOSXgjN7dDo4iZpZXLNLvFNjA0otS_9AFiRAgCVAbQyMDI2LTA5LTMwVDAwOjAwOjAwWqUwLjEuMJOmMS4yMS40wKVtYWNvc5GVqW1pbmVjcmFmdKdvcHRpb25zqXByb2ZpbGUtMaNmb3ajMC41";
+    const qr = QRCode.create(code, { errorCorrectionLevel: "M" });
+    const width = 768;
+    const margin = 2;
+    const scale = width / (qr.modules.size + margin * 2);
+    const border = margin * scale;
+    const pixels = new Uint8ClampedArray(width * width * 4).fill(255);
+    for (let y = 0; y < width; y++)
+      for (let x = 0; x < width; x++) {
+        if (
+          x < border ||
+          y < border ||
+          x >= width - border ||
+          y >= width - border
+        )
+          continue;
+        const mx = Math.floor((x - border) / scale);
+        const my = Math.floor((y - border) / scale);
+        if (qr.modules.get(my, mx)) {
+          const offset = (y * width + x) * 4;
+          pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 0;
+        }
+      }
+    expect(await decodeQrPixels(pixels, width, width)).toBe(code);
+  });
 });
