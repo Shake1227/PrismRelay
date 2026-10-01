@@ -18,11 +18,7 @@ import { Modal } from "../components/Modal";
 import { backend, isDesktop } from "../services/backend";
 import { formatBytes } from "../utils/format";
 import { presets, selectPreset } from "../utils/tree";
-import {
-  minecraftProfiles,
-  minecraftVersion,
-  reconcileProfiles,
-} from "../utils/profiles";
+import { minecraftVersion, reconcileProfiles } from "../utils/profiles";
 import { createRequestGuard } from "../utils/requestGuard";
 import type { WorkspaceProps } from "./types";
 interface SavedPreset {
@@ -59,10 +55,9 @@ export function Export({
   onCreated: () => void;
 }) {
   const { t } = useI18n();
-  const [profiles, setProfiles] = useState<TargetProfiles>({
-    minecraftProfile: minecraftProfiles(scan)[0],
-    lunarProfile: scan.lunarProfiles[0],
-  });
+  const [profiles, setProfiles] = useState<TargetProfiles>(() =>
+    reconcileProfiles(scan, {}),
+  );
   const settings = scan.settings.filter((setting) =>
     setting.source === "minecraft"
       ? setting.profile === profiles.minecraftProfile

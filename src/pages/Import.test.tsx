@@ -30,7 +30,8 @@ const bridge = vi.hoisted(() => ({
 
 vi.mock("../services/backend", () => ({ isDesktop: true, backend: bridge }));
 
-const minecraftPath = "/Users/sample/.lunarclient/profiles/1.21/optionsLC.txt";
+const minecraftPath =
+  "/Users/sample/Library/Application Support/minecraft/optionsLC.txt";
 const lunarPath = "/Users/sample/.lunarclient/settings/game/default/mods.json";
 const setting = (
   id: string,
@@ -70,14 +71,14 @@ const scan: ScanReport = {
     {
       id: "vanilla",
       source: "minecraft",
-      profile: "Vanilla",
+      profile: "Minecraft",
       fileKind: "options",
       path: "/Users/sample/Library/Application Support/minecraft/options.txt",
     },
     {
       id: "lunar-mc",
       source: "minecraft",
-      profile: "Lunar 1.21",
+      profile: "Minecraft",
       fileKind: "options",
       path: minecraftPath,
     },
@@ -112,7 +113,12 @@ const navigate = vi.fn();
 const onRefresh = vi.fn(async () => {
   currentScan = {
     ...currentScan,
-    settings: [setting("local-fov", "minecraft", currentFov)],
+    settings: [
+      {
+        ...setting("local-fov", "minecraft", currentFov),
+        profile: "Minecraft",
+      },
+    ],
   };
   render();
 });
@@ -161,13 +167,11 @@ async function enter(code: string) {
   });
 }
 
-async function choose(minecraft: string, lunar: string) {
+async function choose(lunar: string) {
   await act(async () => {
     const selects = container.querySelectorAll<HTMLSelectElement>("select");
-    selects[0].value = minecraft;
+    selects[0].value = lunar;
     selects[0].dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    selects[1].value = lunar;
-    selects[1].dispatchEvent(new dom.window.Event("change", { bubbles: true }));
   });
 }
 
@@ -296,21 +300,58 @@ afterAll(() => {
 });
 
 describe("desktop import destination and repeated imports", () => {
-  it("requires explicit targets and retains them for Windows-to-Mac then Mac-to-Mac imports", async () => {
+  it("starts with the active Lunar preset and keeps the user's different choice across scans", async () => {
+    currentScan = { ...scan, activeLunarProfile: "my-game-profile" };
+    await act(async () => render());
+    await enter("windows-first");
+    expect(
+      container.querySelector<HTMLSelectElement>(".profile-selects select")!
+        .value,
+    ).toBe("my-game-profile");
+    await choose("default");
+    currentScan = { ...currentScan };
+    await act(async () => render());
+    expect(
+      container.querySelector<HTMLSelectElement>(".profile-selects select")!
+        .value,
+    ).toBe("default");
+    await click("Preview differences");
+    expect(bridge.preview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { minecraftProfile: "Minecraft", lunarProfile: "default" },
+      }),
+    );
+  });
+  it("rejects several shared game profiles before planning a write", async () => {
+    const shared = envelope("windows", 80);
+    bridge.decode.mockResolvedValueOnce({
+      ...shared,
+      settings: [
+        ...shared.settings,
+        { ...setting("other-fov", "minecraft", 90), profile: "profile-2" },
+      ],
+    });
+    await enter("windows-multiple");
+    expect(container.textContent).toContain("one profile per app");
+    expect(container.querySelector(".tree-picker")).toBeNull();
+    expect(bridge.preview).not.toHaveBeenCalled();
+    expect(bridge.apply).not.toHaveBeenCalled();
+  });
+  it("uses the default game folder and retains the Lunar preset for Windows-to-Mac then Mac-to-Mac imports", async () => {
     await enter("windows-first");
     expect(
       [...container.querySelectorAll<HTMLSelectElement>("select")].map(
         (select) => select.value,
       ),
-    ).toEqual(["", ""]);
+    ).toEqual([""]);
     expect(button("Preview differences").disabled).toBe(true);
-    await choose("Lunar 1.21", "default");
+    await choose("default");
     await click("Preview differences");
     expect(bridge.preview).toHaveBeenLastCalledWith(
       expect.objectContaining({
         code: "windows-first",
         selectedIds: ["windows-fov", "windows-fps"],
-        target: { minecraftProfile: "Lunar 1.21", lunarProfile: "default" },
+        target: { minecraftProfile: "Minecraft", lunarProfile: "default" },
       }),
     );
     expect(container.textContent).toContain(minecraftPath);
@@ -318,7 +359,7 @@ describe("desktop import destination and repeated imports", () => {
     await click("Apply selected settings");
     await click("Back up and apply");
     expect(container.textContent).toContain("Settings applied.");
-    expect(container.textContent).toContain("Minecraft · Lunar 1.21");
+    expect(container.textContent).not.toContain("Minecraft · Minecraft");
     expect(container.textContent).toContain(minecraftPath);
     expect(container.textContent).not.toContain(lunarPath);
     await click("Import another code");
@@ -327,7 +368,7 @@ describe("desktop import destination and repeated imports", () => {
       [...container.querySelectorAll<HTMLSelectElement>("select")].map(
         (select) => select.value,
       ),
-    ).toEqual(["Lunar 1.21", "default"]);
+    ).toEqual(["default"]);
     await click("Preview differences");
     await click("Apply selected settings");
     await click("Back up and apply");
@@ -338,7 +379,7 @@ describe("desktop import destination and repeated imports", () => {
     expect(bridge.apply.mock.calls[1][0]).toEqual({
       code: "macos-second",
       selectedIds: ["macos-fov", "macos-fps"],
-      target: { minecraftProfile: "Lunar 1.21", lunarProfile: "default" },
+      target: { minecraftProfile: "Minecraft", lunarProfile: "default" },
       request: {},
     });
     expect(currentFov).toBe(90);
@@ -348,7 +389,7 @@ describe("desktop import destination and repeated imports", () => {
 
   it("requires a new preview after a failed apply and uses the fresh fingerprint", async () => {
     await enter("windows-first");
-    await choose("Lunar 1.21", "default");
+    await choose("default");
     await click("Preview differences");
     const stale = bridge.preview.mock.results[0].value;
     bridge.apply.mockRejectedValueOnce(
@@ -370,7 +411,7 @@ describe("desktop import destination and repeated imports", () => {
     await click("Back up and apply");
     expect(bridge.apply).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        target: { minecraftProfile: "Lunar 1.21", lunarProfile: "default" },
+        target: { minecraftProfile: "Minecraft", lunarProfile: "default" },
       }),
       fresh.fingerprint,
       false,
@@ -382,7 +423,7 @@ describe("desktop import destination and repeated imports", () => {
     currentScan = {
       ...scan,
       files: scan.files.filter(
-        (file) => file.profile === "Lunar 1.21" || file.profile === "default",
+        (file) => file.profile === "Minecraft" || file.profile === "default",
       ),
       lunarProfiles: ["default"],
     };
@@ -392,7 +433,7 @@ describe("desktop import destination and repeated imports", () => {
       [...container.querySelectorAll<HTMLSelectElement>("select")].map(
         (select) => select.value,
       ),
-    ).toEqual(["Lunar 1.21", "default"]);
+    ).toEqual(["default"]);
     await click("Preview differences");
     await click("Apply selected settings");
     await click("Back up and apply");

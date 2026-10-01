@@ -49,7 +49,7 @@ const minecraft: Setting[] = fields.map(
     label,
     value,
     fileKind: "options",
-    profile: "1.21.4",
+    profile: "Minecraft",
     pointer: label.toLowerCase().replaceAll(" ", "_"),
   }),
 );
@@ -109,7 +109,7 @@ export const demoScan: ScanReport = {
       source: "minecraft",
       path: "サンプル / Minecraft / options.txt",
       fileKind: "options",
-      profile: "1.21.4",
+      profile: "Minecraft",
     },
     {
       id: "demo-lunar",

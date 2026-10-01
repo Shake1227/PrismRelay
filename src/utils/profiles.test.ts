@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ScanReport } from "../models";
 import {
+  defaultMinecraftProfile,
+  defaultLunarProfile,
   minecraftProfiles,
   minecraftVersion,
   reconcileProfiles,
@@ -10,69 +12,126 @@ import {
 const scan: ScanReport = {
   settings: [],
   minecraftDetected: true,
-  lunarDetected: false,
+  lunarDetected: true,
   minecraftVersions: ["1.21", "1.8.9"],
-  lunarProfiles: [],
+  lunarProfiles: ["Default", "PvP"],
   warnings: [],
   platform: "macOS",
   runningProcesses: [],
   files: [
     {
-      id: "vanilla",
+      id: "game",
       source: "minecraft",
-      profile: "Vanilla",
+      profile: "Minecraft",
       path: "/sample/options.txt",
       fileKind: "options",
     },
     {
-      id: "lunar",
+      id: "game-lc",
       source: "minecraft",
-      profile: "Lunar 1.21",
-      path: "/sample/lunar/options.txt",
+      profile: "Minecraft",
+      path: "/sample/optionsLC.txt",
       fileKind: "options",
     },
     {
       id: "optifine",
       source: "minecraft",
-      profile: "Lunar 1.21",
-      path: "/sample/lunar/optionsof.txt",
+      profile: "Minecraft",
+      path: "/sample/optionsof.txt",
       fileKind: "optionsof",
     },
   ],
 };
 
-describe("profile selection", () => {
-  it("offers real target profile identities rather than version labels", () => {
-    expect(minecraftProfiles(scan)).toEqual(["Vanilla", "Lunar 1.21"]);
+describe("default game folder and Lunar preset selection", () => {
+  it("prefers the active Lunar preset, preserves a valid explicit choice, and leaves uncertain multiple presets unselected", () => {
+    const active = { ...scan, activeLunarProfile: "PvP" };
+    expect(defaultLunarProfile(active)).toBe("PvP");
+    expect(reconcileProfiles(active, {})).toEqual({
+      minecraftProfile: "Minecraft",
+      lunarProfile: "PvP",
+    });
+    expect(reconcileImportProfiles(active)).toEqual({
+      minecraftProfile: "Minecraft",
+      lunarProfile: "PvP",
+    });
+    expect(defaultLunarProfile(active, "Default")).toBe("Default");
+    expect(
+      reconcileImportProfiles(active, { lunarProfile: "Default" }),
+    ).toEqual({ minecraftProfile: "Minecraft", lunarProfile: "Default" });
+    expect(defaultLunarProfile(scan)).toBeUndefined();
+    expect(
+      defaultLunarProfile({ ...scan, activeLunarProfile: null }),
+    ).toBeUndefined();
+    expect(
+      defaultLunarProfile({ ...scan, activeLunarProfile: "not-registered" }),
+    ).toBeUndefined();
+    expect(
+      defaultLunarProfile({
+        ...scan,
+        lunarProfiles: ["Default"],
+        activeLunarProfile: "not-registered",
+      }),
+    ).toBe("Default");
+    expect(defaultLunarProfile({ ...scan, lunarProfiles: [] })).toBeUndefined();
   });
-  it("does not place a user profile name in shared version metadata", () => {
-    expect(minecraftVersion(scan, "Vanilla")).toBeUndefined();
+  it("uses one game profile automatically when several files belong to the same folder", () => {
+    expect(minecraftProfiles(scan)).toEqual(["Minecraft"]);
+    expect(defaultMinecraftProfile(scan)).toBe("Minecraft");
+    expect(reconcileImportProfiles(scan)).toEqual({
+      minecraftProfile: "Minecraft",
+      lunarProfile: undefined,
+    });
+  });
+  it("never puts a local game profile name in shared version metadata", () => {
+    expect(minecraftVersion(scan, "Minecraft")).toBeUndefined();
     expect(minecraftVersion(scan, "My Private Profile")).toBeUndefined();
     expect(minecraftVersion(scan, "Lunar 1.21")).toBe("1.21");
     expect(minecraftVersion(scan, "Lunar 1.21.4")).toBeUndefined();
   });
-  it("keeps valid profile choices and replaces profiles removed by a new scan", () => {
-    const valid = { minecraftProfile: "Lunar 1.21" };
-    expect(reconcileProfiles(scan, valid)).toBe(valid);
-    expect(reconcileProfiles(scan, { minecraftProfile: "removed" })).toEqual({
-      minecraftProfile: "Vanilla",
-      lunarProfile: undefined,
-    });
-  });
-  it("requires an explicit import target when several profiles exist and after a selected profile disappears", () => {
-    expect(reconcileImportProfiles(scan)).toEqual({});
-    const chosen = { minecraftProfile: "Lunar 1.21" };
-    expect(reconcileImportProfiles({ ...scan }, chosen)).toBe(chosen);
+  it("updates the game folder automatically while retaining a valid Lunar preset", () => {
     expect(
-      reconcileImportProfiles(scan, { minecraftProfile: "missing" }),
-    ).toEqual({ minecraftProfile: undefined, lunarProfile: undefined });
-    const single = {
-      ...scan,
-      files: scan.files.filter((file) => file.profile === "Lunar 1.21"),
-    };
-    expect(reconcileImportProfiles(single)).toEqual({
-      minecraftProfile: "Lunar 1.21",
+      reconcileProfiles(scan, {
+        minecraftProfile: "removed",
+        lunarProfile: "PvP",
+      }),
+    ).toEqual({ minecraftProfile: "Minecraft", lunarProfile: "PvP" });
+    const valid = { minecraftProfile: "Minecraft", lunarProfile: "PvP" };
+    expect(reconcileProfiles(scan, valid)).toBe(valid);
+    expect(
+      reconcileImportProfiles(scan, {
+        minecraftProfile: "removed",
+        lunarProfile: "PvP",
+      }),
+    ).toEqual(valid);
+    expect(reconcileImportProfiles(scan, { lunarProfile: "removed" })).toEqual({
+      minecraftProfile: "Minecraft",
       lunarProfile: undefined,
     });
+    expect(
+      reconcileImportProfiles({ ...scan, lunarProfiles: ["Default"] }),
+    ).toEqual({ minecraftProfile: "Minecraft", lunarProfile: "Default" });
+  });
+  it("does not silently choose a game folder from an ambiguous older scan", () => {
+    const ambiguous: ScanReport = {
+      ...scan,
+      files: [
+        ...scan.files,
+        {
+          id: "older-game",
+          source: "minecraft",
+          profile: "Lunar 1.21",
+          path: "/other/options.txt",
+          fileKind: "options",
+        },
+      ],
+    };
+    expect(defaultMinecraftProfile(ambiguous)).toBeUndefined();
+    expect(
+      reconcileImportProfiles(ambiguous, {
+        minecraftProfile: "Lunar 1.21",
+        lunarProfile: "PvP",
+      }),
+    ).toEqual({ minecraftProfile: undefined, lunarProfile: "PvP" });
   });
 });

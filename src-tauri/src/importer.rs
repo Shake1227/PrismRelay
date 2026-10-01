@@ -51,6 +51,7 @@ struct PlannedFile {
     expected: Vec<u8>,
     current_settings: BTreeMap<String, Setting>,
     present_keys: BTreeSet<String>,
+    lunar_document: Option<Value>,
     settings: Vec<Setting>,
 }
 
@@ -177,12 +178,26 @@ fn plan(
         if !mapped.insert(key) {
             return Err("Multiple shared profiles target the same setting. Select settings from one shared profile at a time.".into());
         }
-        let current = report.settings.iter().find(|setting| {
-            setting.source == incoming.source
-                && setting.file_kind == incoming.file_kind
-                && setting.pointer == incoming.pointer
-                && &setting.profile == profile
-        });
+        let current = report
+            .settings
+            .iter()
+            .find(|setting| {
+                setting.source == incoming.source
+                    && setting.file_kind == incoming.file_kind
+                    && setting.pointer == incoming.pointer
+                    && &setting.profile == profile
+            })
+            .cloned()
+            .or_else(|| {
+                if crate::lunar::is_module_enabled_setting(incoming) {
+                    let mut current = incoming.clone();
+                    current.profile = profile.clone();
+                    current.value = Value::Null;
+                    Some(current)
+                } else {
+                    None
+                }
+            });
         let Some(current) = current else {
             unsupported += 1;
             continue;
@@ -199,6 +214,10 @@ fn plan(
                             && file.file_kind == "options_legacy"))
             })
             .collect();
+        if source_files.is_empty() {
+            unsupported += 1;
+            continue;
+        }
         let paired_options = source_files.len() == 2
             && current.source == "minecraft"
             && source_files.iter().any(|file| {
@@ -250,6 +269,11 @@ fn plan(
                     } else {
                         current_settings.keys().cloned().collect()
                     };
+                let lunar_document = if current.source == "lunar" {
+                    Some(crate::lunar::parse_document(content)?)
+                } else {
+                    None
+                };
                 files.insert(
                     path.clone(),
                     PlannedFile {
@@ -258,6 +282,7 @@ fn plan(
                         expected,
                         current_settings,
                         present_keys,
+                        lunar_document,
                         settings: Vec::new(),
                     },
                 );
@@ -272,11 +297,32 @@ fn plan(
                 continue 'settings;
             }
             if let Some(captured) = file.current_settings.get(&incoming.pointer) {
-                if !crate::lunar::same_value_type(&captured.value, &incoming.value) {
+                let value = if captured.source == "lunar" {
+                    crate::lunar::value_for_existing_type(
+                        &incoming.file_kind,
+                        &incoming.pointer,
+                        &captured.value,
+                        &incoming.value,
+                    )
+                } else if crate::lunar::same_value_type(&captured.value, &incoming.value) {
+                    Some(incoming.value.clone())
+                } else {
+                    None
+                };
+                let Some(value) = value else {
                     unsupported += 1;
                     continue 'settings;
-                }
-                destinations.push((path, captured.clone()));
+                };
+                destinations.push((path, captured.clone(), value));
+            } else if file
+                .lunar_document
+                .as_ref()
+                .is_some_and(|document| crate::lunar::can_insert_module_enabled(document, incoming))
+            {
+                let mut setting = incoming.clone();
+                setting.profile = profile.clone();
+                setting.value = Value::Null;
+                destinations.push((path, setting, incoming.value.clone()));
             }
         }
         if destinations.is_empty() {
@@ -285,22 +331,22 @@ fn plan(
         }
         let changed = destinations
             .iter()
-            .any(|(_, setting)| setting.value != incoming.value);
+            .any(|(_, setting, value)| setting.value != *value);
         let current = destinations
             .iter()
-            .find(|(_, setting)| setting.value != incoming.value)
+            .find(|(_, setting, value)| setting.value != *value)
             .or_else(|| {
-                destinations.iter().find(|(path, _)| {
+                destinations.iter().find(|(path, _, _)| {
                     path.file_name() == Some(std::ffi::OsStr::new("optionsLC.txt"))
                 })
             })
             .unwrap_or(&destinations[0])
             .1
             .clone();
-        for (path, mut setting) in destinations {
+        for (path, mut setting, value) in destinations {
             target_paths.insert(path.clone());
-            if setting.value != incoming.value {
-                setting.value = incoming.value.clone();
+            if setting.value != value {
+                setting.value = value;
                 files.get_mut(&path).unwrap().settings.push(setting);
             }
         }
@@ -396,7 +442,7 @@ mod tests {
             lunar_root: Some(lunar.to_string_lossy().into()),
         };
         let target = ImportTarget {
-            minecraft_profile: "Vanilla".into(),
+            minecraft_profile: "Minecraft".into(),
             lunar_profile: "Destination".into(),
         };
         (
@@ -454,7 +500,7 @@ mod tests {
         assert_eq!(before.target_files.len(), 2);
         assert!(before.target_files.iter().any(|file| {
             file.source == "minecraft"
-                && file.profile == "Vanilla"
+                && file.profile == "Minecraft"
                 && file.file_kind == "options"
                 && std::path::Path::new(&file.path)
                     == PathBuf::from(request.minecraft_root.as_ref().unwrap()).join("options.txt")
@@ -558,8 +604,147 @@ mod tests {
     }
 
     #[test]
+    fn sparse_lunar_enabled_imports_are_previewed_applied_twice_and_restored() {
+        let (_directory, request, target, store) = fixture();
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let original = "\u{feff}{ \"FPS\":{\"unknown\":0.123456789012345678901}, \"future\":[\"unshared\"] }\r\n";
+        fs::write(&mods, original).unwrap();
+        let (first, first_ids) = code(
+            crate::lunar::parse_settings(r#"{"FPS":{"enabled":true}}"#, "mods", "Windows source")
+                .unwrap(),
+        );
+        let before = preview(&first, &first_ids, &target, &request).unwrap();
+        assert_eq!(before.selected_count, 1);
+        assert!(before.changes[0].current.is_null());
+        assert!(before.changes[0].changed);
+        assert_eq!(before.target_files.len(), 1);
+        let _lock = store.lock().unwrap();
+        let first_backup = apply(
+            &store,
+            &first,
+            &first_ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        let first_expected = original.replace(
+            "0.123456789012345678901}",
+            "0.123456789012345678901,\"enabled\":true}",
+        );
+        assert_eq!(fs::read_to_string(&mods).unwrap(), first_expected);
+        assert_eq!(first_backup.files.len(), 1);
+        assert!(
+            !preview(&first, &first_ids, &target, &request)
+                .unwrap()
+                .changes[0]
+                .changed
+        );
+        let (second, second_ids) = code(
+            crate::lunar::parse_settings(r#"{"FPS":{"enabled":false}}"#, "mods", "Mac source")
+                .unwrap(),
+        );
+        let before = preview(&second, &second_ids, &target, &request).unwrap();
+        assert_eq!(before.changes[0].current, true);
+        let second_backup = apply(
+            &store,
+            &second,
+            &second_ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(&mods).unwrap(),
+            first_expected.replace("\"enabled\":true", "\"enabled\":false")
+        );
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        for backup in [&second_backup, &first_backup] {
+            let updates = store.verify(backup, &report).unwrap();
+            store.apply(&report, &request, "restore", updates).unwrap();
+        }
+        assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+        assert_eq!(store.pending_backup_id().unwrap(), None);
+    }
+
+    #[test]
+    fn sparse_lunar_enabled_preview_does_not_overwrite_invalid_existing_types() {
+        let (_directory, request, target, store) = fixture();
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let (code, ids) = code(
+            crate::lunar::parse_settings(r#"{"FPS":{"enabled":true}}"#, "mods", "source").unwrap(),
+        );
+        for original in [
+            r#"{"FPS":{"enabled":"true"}}"#,
+            r#"{"FPS":[]}"#,
+            r#"{"CPS":{}}"#,
+        ] {
+            fs::write(&mods, original).unwrap();
+            assert!(preview(&code, &ids, &target, &request).is_err());
+            assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+            assert!(store.list().unwrap().is_empty());
+        }
+        fs::write(&mods, r#"{"FPS":{}}"#).unwrap();
+        let before = preview(&code, &ids, &target, &request).unwrap();
+        fs::write(&mods, r#"{"FPS":{"unknown":"external-change"}}"#).unwrap();
+        let _lock = store.lock().unwrap();
+        assert!(apply(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint
+        )
+        .is_err());
+        assert!(store.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn reviewed_lunar_numeric_types_convert_in_preview_apply_and_noop() {
+        let (_directory, request, target, store) = fixture();
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let original = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":1}},"TIME_CHANGER":{"options":{"timeChangerTime":"2"}},"future":0.123456789012345678901}"#;
+        fs::write(&mods, original).unwrap();
+        let (code, ids) = code(crate::lunar::parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"3"}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap());
+        let before = preview(&code, &ids, &target, &request).unwrap();
+        assert_eq!(before.selected_count, 2);
+        assert!(before.changes.iter().all(|change| change.changed));
+        let _lock = store.lock().unwrap();
+        let backup = apply(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(&mods).unwrap(),
+            original
+                .replace("\"flyBoostAmount\":1", "\"flyBoostAmount\":3")
+                .replace("\"timeChangerTime\":\"2\"", "\"timeChangerTime\":\"4\"")
+        );
+        let repeated = preview(&code, &ids, &target, &request).unwrap();
+        assert!(repeated.changes.iter().all(|change| !change.changed));
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        let updates = store.verify(&backup, &report).unwrap();
+        store.apply(&report, &request, "restore", updates).unwrap();
+        assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+    }
+
+    #[test]
     fn lunar_game_options_sync_both_formats_for_consecutive_codes_and_restore() {
-        let (directory, request, mut target, store) = fixture();
+        let (directory, mut request, target, store) = fixture();
         let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
         fs::create_dir_all(&game).unwrap();
         let text_path = game.join("options.txt");
@@ -568,7 +753,7 @@ mod tests {
         let lunar_original = "\u{feff}{ \"fov\":\"80\", \"guiScale\":\"2\", \"fullscreen\":\"false\", \"key_key.jump\":\"key.keyboard.space\", \"unknown\":0.9000000000000000001 }\r\n";
         fs::write(&text_path, text_original).unwrap();
         fs::write(&lunar_path, lunar_original).unwrap();
-        target.minecraft_profile = "Lunar 1.21".into();
+        request.minecraft_root = Some(game.to_string_lossy().into());
         let windows = code(crate::minecraft::parse_settings(
             "fov:0.75\r\nguiScale:3\r\nfullscreen:true\r\nkey_key.jump:key.keyboard.r\r\ngraphicsMode:0\r\n",
             "options",
@@ -590,7 +775,7 @@ mod tests {
             assert!(before
                 .target_files
                 .iter()
-                .all(|file| file.profile == "Lunar 1.21"));
+                .all(|file| file.profile == "Minecraft"));
             previous.push([
                 fs::read(&text_path).unwrap(),
                 fs::read(&lunar_path).unwrap(),
@@ -644,14 +829,14 @@ mod tests {
 
     #[test]
     fn changed_lunar_mirror_is_previewed_and_both_files_are_guarded() {
-        let (_directory, request, mut target, store) = fixture();
+        let (_directory, mut request, target, store) = fixture();
         let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
         fs::create_dir_all(&game).unwrap();
         let text = game.join("options.txt");
         let lunar = game.join("optionsLC.txt");
         fs::write(&text, "fov:0.25\n").unwrap();
         fs::write(&lunar, r#"{"fov":"100"}"#).unwrap();
-        target.minecraft_profile = "Lunar 1.21".into();
+        request.minecraft_root = Some(game.to_string_lossy().into());
         let (code, ids) =
             code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
         let before = preview(&code, &ids, &target, &request).unwrap();
@@ -688,19 +873,16 @@ mod tests {
     }
 
     #[test]
-    fn lunar_alias_in_a_vanilla_folder_keeps_vanilla_settings_independent() {
-        let (_directory, request, mut target, store) = fixture();
+    fn lunar_options_in_the_selected_game_folder_sync_with_standard_settings() {
+        let (_directory, request, target, store) = fixture();
         let minecraft = PathBuf::from(request.minecraft_root.as_ref().unwrap());
         let text_path = minecraft.join("options.txt");
-        let text = fs::read(&text_path).unwrap();
         let lunar = minecraft.join("optionsLC.txt");
         fs::write(&lunar, r#"{"fov":"80"}"#).unwrap();
-        target.minecraft_profile = "Lunar Vanilla".into();
         let (code, ids) =
             code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
         let before = preview(&code, &ids, &target, &request).unwrap();
-        assert_eq!(before.target_files.len(), 1);
-        assert_eq!(std::path::Path::new(&before.target_files[0].path), lunar);
+        assert_eq!(before.target_files.len(), 2);
         let _lock = store.lock().unwrap();
         let backup = apply(
             &store,
@@ -712,21 +894,24 @@ mod tests {
             &before.fingerprint,
         )
         .unwrap();
-        assert_eq!(backup.files.len(), 1);
+        assert_eq!(backup.files.len(), 2);
         assert_eq!(fs::read_to_string(lunar).unwrap(), r#"{"fov":"100"}"#);
-        assert_eq!(fs::read(text_path).unwrap(), text);
+        assert_eq!(
+            fs::read_to_string(text_path).unwrap(),
+            "fov:0.75\nguiScale:2\nfutureKey:preserved:value\n"
+        );
     }
 
     #[test]
     fn lunar_limits_and_unsupported_existing_types_are_skipped_without_partial_mirrors() {
-        let (_directory, request, mut target, store) = fixture();
+        let (_directory, mut request, target, store) = fixture();
         let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
         fs::create_dir_all(&game).unwrap();
         let text = game.join("options.txt");
         let lunar = game.join("optionsLC.txt");
         fs::write(&text, "fov:0.5\nguiScale:2\n").unwrap();
         fs::write(&lunar, r#"{"fov":"90","guiScale":"2"}"#).unwrap();
-        target.minecraft_profile = "Lunar 1.21".into();
+        request.minecraft_root = Some(game.to_string_lossy().into());
         let (first_code, first_ids) = code(
             crate::minecraft::parse_settings("fov:1.5\nguiScale:3", "options", "Other").unwrap(),
         );

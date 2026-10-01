@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod codec;
+mod game_processes;
 mod icons;
 pub mod importer;
 pub mod lunar;

@@ -305,11 +305,17 @@ mod tests {
     fn secrets_and_unknown_keys_are_never_shared() {
         let settings = parse_settings("fov:0.5\nlastServer:private.example\naccessToken:secret\nmouseSensitivity:0.4\nfutureOption:1\n", "options", "default").unwrap();
         assert_eq!(settings.len(), 2);
-        assert!(!lunar_value_is_safe(
+        assert!(lunar_value_is_safe(
             "mods",
             "/WAYPOINTS/enabled",
             &json!(true)
         ));
+        assert!(!lunar_value_is_safe(
+            "mods",
+            "/WAYPOINTS/waypoints",
+            &json!([])
+        ));
+        assert!(!lunar_value_is_safe("mods", "/WAYPOINTS/x", &json!(0.5)));
         assert!(!lunar_value_is_safe(
             "mods",
             "/SERVER_ADDRESS/x",

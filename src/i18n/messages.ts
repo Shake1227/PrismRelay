@@ -3,6 +3,42 @@ import type { Language } from "../models";
 type MessageRow = [string, string, string, string, string, string, string];
 const rows: MessageRow[] = [
   [
+    "This Lunar field cannot be added.",
+    "This Lunar setting cannot be added to this preset.",
+    "이 Lunar 설정을 현재 프리셋에 추가할 수 없습니다.",
+    "无法将此 Lunar 设置添加到当前预设。",
+    "Tätä Lunar-asetusta ei voi lisätä tähän esiasetukseen.",
+    "Este ajuste de Lunar no se puede añadir a este preset.",
+    "Diese Lunar-Einstellung kann dieser Vorlage nicht hinzugefügt werden.",
+  ],
+  [
+    "Minecraft is running. Close the game before changing settings.",
+    "Minecraft is running. Close the game before changing settings.",
+    "Minecraft가 실행 중입니다. 설정을 변경하기 전에 게임을 종료하세요.",
+    "Minecraft 正在运行。更改设置前请先退出游戏。",
+    "Minecraft on käynnissä. Sulje peli ennen asetusten muuttamista.",
+    "Minecraft está en ejecución. Cierra el juego antes de cambiar los ajustes.",
+    "Minecraft läuft. Das Spiel vor dem Ändern der Einstellungen schließen.",
+  ],
+  [
+    "このコードには複数のプロフィールが含まれています。アプリごとに1つのプロフィールで共有コードを作成してください。",
+    "This code contains several profiles. Create a share code with one profile per app.",
+    "이 코드에는 여러 프로필이 포함되어 있습니다. 앱마다 하나의 프로필로 공유 코드를 만들어 주세요.",
+    "此代码包含多个配置档案。请为每个应用选择一个配置档案后生成分享码。",
+    "Koodi sisältää useita profiileja. Luo jakokoodi, jossa on yksi profiili sovellusta kohden.",
+    "Este código contiene varios perfiles. Crea un código con un perfil por aplicación.",
+    "Dieser Code enthält mehrere Profile. Einen Freigabecode mit einem Profil pro App erstellen.",
+  ],
+  [
+    "Minecraftの設定フォルダを検出できません。設定画面でフォルダを指定してください。",
+    "The Minecraft settings folder was not found. Choose the folder in Settings.",
+    "Minecraft 설정 폴더를 찾을 수 없습니다. 설정에서 폴더를 지정하세요.",
+    "未找到 Minecraft 设置文件夹。请在设置中指定文件夹。",
+    "Minecraftin asetuskansiota ei löytynyt. Valitse kansio asetuksissa.",
+    "No se encontró la carpeta de ajustes de Minecraft. Selecciona la carpeta en Ajustes.",
+    "Der Minecraft-Einstellungsordner wurde nicht gefunden. Den Ordner unter Einstellungen auswählen.",
+  ],
+  [
     "This Minecraft settings file is unsupported.",
     "This Minecraft settings file is unsupported.",
     "이 Minecraft 설정 파일은 지원하지 않습니다.",
@@ -3061,6 +3097,10 @@ export const japaneseMessages: Record<string, string> = {
     "OptiFine の設定を検出しました。読み取りとバックアップに対応しています。",
   "Minecraft, Lunar Client, or a Java game may be running. Close the game before changing settings.":
     "ゲームが起動している可能性があります。設定の変更前に終了してください。",
+  "Minecraft is running. Close the game before changing settings.":
+    "Minecraft が起動しています。設定の変更前にゲームを終了してください。",
+  "This Lunar field cannot be added.":
+    "この Lunar 設定は、選択したプリセットに追加できません。",
   "A folder contains too many profiles. Choose a specific settings folder to scan it.":
     "プロフィールの検出上限に達しました。対象の設定フォルダを指定してください。",
   "The scan limit was reached. Choose a specific settings folder to continue.":

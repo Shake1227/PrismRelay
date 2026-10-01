@@ -114,6 +114,7 @@ function WorkspaceApp({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [scanFailed, setScanFailed] = useState(false);
   const scanGuard = useRef(createRequestGuard());
   const [lastExport, setLastExport] = useState<string | null>(null);
@@ -146,6 +147,7 @@ function WorkspaceApp({
     }
     if (results[1].status === "fulfilled") setBackups(results[1].value);
     else onError(results[1].reason);
+    setInitialized(true);
     setLoading(false);
   }, [preferences.request, onError]);
   useEffect(() => {
@@ -321,7 +323,7 @@ function WorkspaceApp({
             ))}
           </details>
         )}
-        {loading && !scan.settings.length ? (
+        {loading && !initialized ? (
           <div className="loading-screen">
             <PrismMark className="loading-prism" />
             <h2>{t("プレイ環境を探しています…")}</h2>

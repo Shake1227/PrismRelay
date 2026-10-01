@@ -47,7 +47,13 @@
   "general:/variableZoom": [
     "bool"
   ],
+  "mods:/2D_ITEMS/enabled": [
+    "bool"
+  ],
   "mods:/3D_SKINS/enabled": [
+    "bool"
+  ],
+  "mods:/ACTION_BAR/enabled": [
     "bool"
   ],
   "mods:/ARMORSTATUS/ARMORSTATUS_BOOTS_CHILD/position": [
@@ -86,6 +92,9 @@
   "mods:/ARMORSTATUS/ARMORSTATUS_PROTECTION_CHILD/y": [
     "number"
   ],
+  "mods:/ARMORSTATUS/enabled": [
+    "bool"
+  ],
   "mods:/ARMORSTATUS/options/armorDamage": [
     "bool"
   ],
@@ -98,11 +107,23 @@
   "mods:/ARMORSTATUS/y": [
     "number"
   ],
+  "mods:/ATTACK_INDICATOR/enabled": [
+    "bool"
+  ],
+  "mods:/AUDIO_SUBTITLES/enabled": [
+    "bool"
+  ],
   "mods:/AUDIO_SUBTITLES/position": [
     "position"
   ],
   "mods:/AUDIO_SUBTITLES/y": [
     "number"
+  ],
+  "mods:/AUTO_TEXT_ACTIONS/enabled": [
+    "bool"
+  ],
+  "mods:/AUTO_TEXT_HOTKEY/enabled": [
+    "bool"
   ],
   "mods:/BLOCK_OUTLINE/enabled": [
     "bool"
@@ -114,9 +135,13 @@
     "number"
   ],
   "mods:/BLOCK_OUTLINE/options/blockOutlineWidth": [
-    "numericString"
+    "numericString",
+    "number"
   ],
   "mods:/BLOCK_OUTLINE/options/blockOverlay": [
+    "bool"
+  ],
+  "mods:/BOSSBAR/enabled": [
     "bool"
   ],
   "mods:/BOSSBAR/position": [
@@ -128,6 +153,9 @@
   "mods:/BOSSBAR/y": [
     "number"
   ],
+  "mods:/CHAT/enabled": [
+    "bool"
+  ],
   "mods:/CHAT/options/copyChat": [
     "bool"
   ],
@@ -136,6 +164,12 @@
   ],
   "mods:/CHAT/options/timeBasedStackMessagesTimeframe": [
     "numericString"
+  ],
+  "mods:/CHUNK_BORDERS/enabled": [
+    "bool"
+  ],
+  "mods:/CLOCK/enabled": [
+    "bool"
   ],
   "mods:/CLOCK/options/backgroundColor/chroma": [
     "bool"
@@ -151,6 +185,12 @@
   ],
   "mods:/CLOCK/y": [
     "number"
+  ],
+  "mods:/COLOR_SATURATION/enabled": [
+    "bool"
+  ],
+  "mods:/COMBO/enabled": [
+    "bool"
   ],
   "mods:/COMBO/options/backgroundColor/chroma": [
     "bool"
@@ -245,6 +285,9 @@
   "mods:/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize": [
     "numericString"
   ],
+  "mods:/CROSSHAIR/enabled": [
+    "bool"
+  ],
   "mods:/CROSSHAIR/options/crosshairGap": [
     "numericString"
   ],
@@ -255,6 +298,12 @@
     "numericString"
   ],
   "mods:/CROSSHAIR/options/help_box_open": [
+    "bool"
+  ],
+  "mods:/DAMAGE_TINT/enabled": [
+    "bool"
+  ],
+  "mods:/DAY_COUNTER/enabled": [
     "bool"
   ],
   "mods:/DIRECTION_HUD/enabled": [
@@ -344,6 +393,9 @@
   "mods:/F3_DISPLAY/default_world_info/y": [
     "number"
   ],
+  "mods:/F3_DISPLAY/enabled": [
+    "bool"
+  ],
   "mods:/FOG/enabled": [
     "bool"
   ],
@@ -355,6 +407,9 @@
   ],
   "mods:/FOG/options/waterFogDensity": [
     "numericString"
+  ],
+  "mods:/FOV/enabled": [
+    "bool"
   ],
   "mods:/FPS/enabled": [
     "bool"
@@ -377,7 +432,25 @@
   "mods:/FPS/y": [
     "number"
   ],
+  "mods:/FREELOOK/enabled": [
+    "bool"
+  ],
+  "mods:/GLINT_COLORIZER/enabled": [
+    "bool"
+  ],
+  "mods:/GUI_SCALE/enabled": [
+    "bool"
+  ],
   "mods:/HEIGHT_LIMIT/enabled": [
+    "bool"
+  ],
+  "mods:/HITBOX/enabled": [
+    "bool"
+  ],
+  "mods:/HIT_COLOR/enabled": [
+    "bool"
+  ],
+  "mods:/HORSE_STATS/enabled": [
     "bool"
   ],
   "mods:/HURT_CAM/enabled": [
@@ -398,6 +471,9 @@
   "mods:/HYPIXEL_BEDWARS/HYPIXEL_BEDWARS_RESOURCE_COUNTER_CHILD/x": [
     "number"
   ],
+  "mods:/HYPIXEL_BEDWARS/enabled": [
+    "bool"
+  ],
   "mods:/HYPIXEL_MOD/HYPIXEL_TPS/enabled": [
     "bool"
   ],
@@ -412,6 +488,9 @@
   ],
   "mods:/HYPIXEL_MOD/HYPIXEL_TPS/y": [
     "number"
+  ],
+  "mods:/HYPIXEL_MOD/enabled": [
+    "bool"
   ],
   "mods:/HYPIXEL_MOD/options/levelHead": [
     "bool"
@@ -437,6 +516,9 @@
   "mods:/INVENTORY_MOD/options/dontResetCursorInventory": [
     "bool"
   ],
+  "mods:/ITEM_COUNTER/enabled": [
+    "bool"
+  ],
   "mods:/ITEM_COUNTER/position": [
     "position"
   ],
@@ -445,6 +527,15 @@
   ],
   "mods:/ITEM_COUNTER/y": [
     "number"
+  ],
+  "mods:/ITEM_CUSTOMIZER/enabled": [
+    "bool"
+  ],
+  "mods:/ITEM_PHYSICS/enabled": [
+    "bool"
+  ],
+  "mods:/ITEM_TRACKER/enabled": [
+    "bool"
   ],
   "mods:/ITEM_TRACKER/options/skyblockOnly": [
     "bool"
@@ -548,7 +639,25 @@
   "mods:/KEYSTROKES/y": [
     "number"
   ],
+  "mods:/KILL_SOUNDS/enabled": [
+    "bool"
+  ],
+  "mods:/KNOCKBACK_TRAINER/enabled": [
+    "bool"
+  ],
+  "mods:/LIGHTING/enabled": [
+    "bool"
+  ],
+  "mods:/LIGHT_OVERLAY/enabled": [
+    "bool"
+  ],
   "mods:/LIGHT_OVERLAY/enabledToggle": [
+    "bool"
+  ],
+  "mods:/MARKERS/enabled": [
+    "bool"
+  ],
+  "mods:/MEMORY/enabled": [
     "bool"
   ],
   "mods:/MEMORY/options/backgroundColor/chroma": [
@@ -566,6 +675,18 @@
   "mods:/MEMORY/y": [
     "number"
   ],
+  "mods:/MENU_BLUR/enabled": [
+    "bool"
+  ],
+  "mods:/MINIMAP/enabled": [
+    "bool"
+  ],
+  "mods:/MOB_SIZE/enabled": [
+    "bool"
+  ],
+  "mods:/MOMENTUM/enabled": [
+    "bool"
+  ],
   "mods:/MOMENTUM/position": [
     "position"
   ],
@@ -575,7 +696,16 @@
   "mods:/MOMENTUM/y": [
     "number"
   ],
+  "mods:/MOTION_BLUR/enabled": [
+    "bool"
+  ],
   "mods:/MUMBLE_LINK/enabled": [
+    "bool"
+  ],
+  "mods:/NAMETAG/enabled": [
+    "bool"
+  ],
+  "mods:/NICK_HIDER/enabled": [
     "bool"
   ],
   "mods:/ONE_SEVEN_VISUALS/ONE_SEVEN_ANIMATIONS_LEGACY/enabled": [
@@ -585,6 +715,18 @@
     "bool"
   ],
   "mods:/ONE_SEVEN_VISUALS/enabled": [
+    "bool"
+  ],
+  "mods:/OVERLAY_MOD/enabled": [
+    "bool"
+  ],
+  "mods:/PACK_DISPLAY/enabled": [
+    "bool"
+  ],
+  "mods:/PACK_ORGANIZER/enabled": [
+    "bool"
+  ],
+  "mods:/PANORAMA_MAKER/enabled": [
     "bool"
   ],
   "mods:/PARTICLE_CHANGER/PARTICLE_CHANGER_BLOCK_CHILD/enabled": [
@@ -632,6 +774,9 @@
   "mods:/PING/y": [
     "number"
   ],
+  "mods:/PLAYTIME/enabled": [
+    "bool"
+  ],
   "mods:/PLAYTIME/position": [
     "position"
   ],
@@ -640,6 +785,12 @@
   ],
   "mods:/PLAYTIME/y": [
     "number"
+  ],
+  "mods:/POTION_COUNTER/enabled": [
+    "bool"
+  ],
+  "mods:/POTION_EFFECTS/enabled": [
+    "bool"
   ],
   "mods:/POTION_EFFECTS/options/background": [
     "bool"
@@ -683,6 +834,9 @@
   "mods:/PVP_INFO/PVP_INFO_PROJECTILE_CHILD/y": [
     "number"
   ],
+  "mods:/PVP_INFO/enabled": [
+    "bool"
+  ],
   "mods:/QUICKPLAY/enabled": [
     "bool"
   ],
@@ -699,6 +853,9 @@
     "bool"
   ],
   "mods:/RADIO/enabled": [
+    "bool"
+  ],
+  "mods:/REACH_DISPLAY/enabled": [
     "bool"
   ],
   "mods:/REACH_DISPLAY/options/backgroundColor/chroma": [
@@ -724,6 +881,9 @@
   ],
   "mods:/REWIND/REWIND_RECORDING_INDICATOR_CHILD/y": [
     "number"
+  ],
+  "mods:/REWIND/enabled": [
+    "bool"
   ],
   "mods:/SATURATION/SATURATION_HUD_CHILD/position": [
     "position"
@@ -887,6 +1047,9 @@
   "mods:/SBA/SBA_TICKER_CHARGES_DISPLAY_CHILD/y": [
     "number"
   ],
+  "mods:/SBA/enabled": [
+    "bool"
+  ],
   "mods:/SBA/options/avoidPlacingEnchantItems": [
     "bool"
   ],
@@ -923,16 +1086,34 @@
   "mods:/SBA/skyblockAddonsMagmaTimer/y": [
     "number"
   ],
+  "mods:/SCOREBOARD/enabled": [
+    "bool"
+  ],
   "mods:/SCOREBOARD/options/backgroundColor/chroma": [
     "bool"
   ],
   "mods:/SCOREBOARD/options/backgroundColor/value": [
     "number"
   ],
+  "mods:/SCREENSHOT/enabled": [
+    "bool"
+  ],
   "mods:/SCROLLABLE_TOOLTIPS/enabled": [
     "bool"
   ],
+  "mods:/SERVER_ADDRESS/enabled": [
+    "bool"
+  ],
+  "mods:/SHIELDS/enabled": [
+    "bool"
+  ],
+  "mods:/SHINY_POTS/enabled": [
+    "bool"
+  ],
   "mods:/SHINY_POTS/options/coloredPotions": [
+    "bool"
+  ],
+  "mods:/SHULKER_PREVIEW/enabled": [
     "bool"
   ],
   "mods:/SKYBLOCK/BETTERMAP_PRIMARY/options/primaryBetterMapCurrentRoomInfoScale": [
@@ -1313,6 +1494,15 @@
   "mods:/SKYBLOCK/options/vampireSteakDisplay": [
     "bool"
   ],
+  "mods:/SNAPLOOK/enabled": [
+    "bool"
+  ],
+  "mods:/SOUND_CHANGER/enabled": [
+    "bool"
+  ],
+  "mods:/STOPWATCH/enabled": [
+    "bool"
+  ],
   "mods:/STOPWATCH/options/backgroundColor/chroma": [
     "bool"
   ],
@@ -1328,14 +1518,31 @@
   "mods:/STOPWATCH/y": [
     "number"
   ],
+  "mods:/TAB/enabled": [
+    "bool"
+  ],
+  "mods:/TEAM_VIEW/enabled": [
+    "bool"
+  ],
+  "mods:/TIER_TAGGER/enabled": [
+    "bool"
+  ],
   "mods:/TIME_CHANGER/enabled": [
     "bool"
   ],
   "mods:/TIME_CHANGER/options/horizonYLevel": [
-    "numericString"
+    "numericString",
+    "number"
   ],
   "mods:/TIME_CHANGER/options/timeChangerTime": [
-    "numericString"
+    "numericString",
+    "number"
+  ],
+  "mods:/TITLES/enabled": [
+    "bool"
+  ],
+  "mods:/TNT_COUNTDOWN/enabled": [
+    "bool"
   ],
   "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/options/iconMode": [
     "bool"
@@ -1349,8 +1556,12 @@
   "mods:/TOGGLE_SNEAK/TOGGLE_SNEAK_HUD_CHILD/y": [
     "number"
   ],
+  "mods:/TOGGLE_SNEAK/enabled": [
+    "bool"
+  ],
   "mods:/TOGGLE_SNEAK/options/flyBoostAmount": [
-    "numericString"
+    "numericString",
+    "number"
   ],
   "mods:/TOGGLE_SNEAK/position": [
     "position"
@@ -1366,6 +1577,9 @@
   ],
   "mods:/TOTEM_COUNTER/TOTEM_COUNTER_HUD_CHILD/y": [
     "number"
+  ],
+  "mods:/TOTEM_COUNTER/enabled": [
+    "bool"
   ],
   "mods:/UHC_OVERLAY/enabled": [
     "bool"
@@ -1385,11 +1599,29 @@
   "mods:/UHC_OVERLAY/options/skullScale": [
     "numericString"
   ],
+  "mods:/VIEW_ANGLES/enabled": [
+    "bool"
+  ],
+  "mods:/WAILA/enabled": [
+    "bool"
+  ],
+  "mods:/WAYPOINTS/enabled": [
+    "bool"
+  ],
+  "mods:/WEATHER_CHANGER/enabled": [
+    "bool"
+  ],
+  "mods:/WORLDEDIT_CUI/enabled": [
+    "bool"
+  ],
   "mods:/WORLDEDIT_CUI/options/positionOneColor/value": [
     "number"
   ],
   "mods:/WORLDEDIT_CUI/options/positionTwoColor/value": [
     "number"
+  ],
+  "mods:/ZOOM/enabled": [
+    "bool"
   ],
   "mods:/ZOOM/options/zoomKeybind": [
     "keybind"

@@ -30,7 +30,9 @@ export function ImportDestinations({
             {file.source && (
               <span>
                 {file.source === "minecraft" ? "Minecraft" : "Lunar"}
-                {file.profile ? ` · ${file.profile}` : ""}
+                {file.source === "lunar" && file.profile
+                  ? ` · ${file.profile}`
+                  : ""}
               </span>
             )}
             <code>{path}</code>

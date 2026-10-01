@@ -142,24 +142,97 @@ fn collect(
 }
 
 pub fn merge_settings(content: &str, settings: &[Setting]) -> Result<String, String> {
+    let document = parse_document(content)?;
     let mut seen = BTreeSet::new();
     let mut changes = BTreeMap::new();
+    let mut additions = BTreeMap::new();
     for setting in settings {
         crate::safety::validate_setting(setting)?;
         if setting.source != "lunar" || !seen.insert(setting.pointer.as_str()) {
             return Err("The selected Lunar settings are unsupported or duplicated.".into());
         }
-        changes.insert(setting.pointer.clone(), setting.value.clone());
+        if can_insert_module_enabled(&document, setting) {
+            additions.insert(setting.pointer.clone(), setting.value.clone());
+        } else {
+            let existing = document
+                .pointer(&setting.pointer)
+                .ok_or("A selected setting is unavailable in this Lunar profile.")?;
+            let value = value_for_existing_type(
+                &setting.file_kind,
+                &setting.pointer,
+                existing,
+                &setting.value,
+            )
+            .ok_or("A selected setting uses a different Lunar schema version.")?;
+            changes.insert(setting.pointer.clone(), value);
+        }
     }
-    replace_scalar_values(content, &changes)
+    patch_scalar_values(content, &changes, &additions)
+}
+
+pub(crate) fn value_for_existing_type(
+    file_kind: &str,
+    pointer: &str,
+    existing: &Value,
+    incoming: &Value,
+) -> Option<Value> {
+    if !crate::safety::lunar_value_is_safe(file_kind, pointer, existing)
+        || !crate::safety::lunar_value_is_safe(file_kind, pointer, incoming)
+    {
+        return None;
+    }
+    if same_value_type(existing, incoming) {
+        return Some(incoming.clone());
+    }
+    let value = if existing.is_number() {
+        let raw = incoming.as_str()?;
+        serde_json::from_str::<Value>(raw)
+            .ok()
+            .filter(Value::is_number)
+            .or_else(|| Number::from_f64(raw.parse::<f64>().ok()?).map(Value::Number))?
+    } else if existing.is_string() && incoming.is_number() {
+        Value::String(incoming.to_string())
+    } else {
+        return None;
+    };
+    crate::safety::lunar_value_is_safe(file_kind, pointer, &value).then_some(value)
+}
+
+pub(crate) fn is_module_enabled_setting(setting: &Setting) -> bool {
+    setting.source == "lunar"
+        && setting.file_kind == "mods"
+        && setting.value.is_boolean()
+        && setting.pointer.starts_with('/')
+        && setting.pointer.split('/').count() == 3
+        && setting.pointer.ends_with("/enabled")
+        && crate::safety::validate_setting(setting).is_ok()
+}
+
+pub(crate) fn can_insert_module_enabled(document: &Value, setting: &Setting) -> bool {
+    if !is_module_enabled_setting(setting) || document.pointer(&setting.pointer).is_some() {
+        return false;
+    }
+    setting
+        .pointer
+        .strip_suffix("/enabled")
+        .and_then(|parent| document.pointer(parent))
+        .is_some_and(Value::is_object)
 }
 
 pub(crate) fn replace_scalar_values(
     content: &str,
     changes: &BTreeMap<String, Value>,
 ) -> Result<String, String> {
+    patch_scalar_values(content, changes, &BTreeMap::new())
+}
+
+fn patch_scalar_values(
+    content: &str,
+    changes: &BTreeMap<String, Value>,
+    additions: &BTreeMap<String, Value>,
+) -> Result<String, String> {
     let document = parse_document(content)?;
-    if changes.len() > 10000 {
+    if changes.len() + additions.len() > 10000 {
         return Err("The selected Lunar settings exceed the supported limit.".into());
     }
     for (pointer, value) in changes {
@@ -170,7 +243,20 @@ pub(crate) fn replace_scalar_values(
             return Err("A selected setting uses a different Lunar schema version.".into());
         }
     }
-    let selected = changes.keys().map(String::as_str).collect();
+    let mut selected: BTreeSet<&str> = changes.keys().map(String::as_str).collect();
+    for (pointer, value) in additions {
+        let parent = pointer
+            .strip_suffix("/enabled")
+            .ok_or("This Lunar field cannot be added.")?;
+        if !value.is_boolean()
+            || document.pointer(pointer).is_some()
+            || !document.pointer(parent).is_some_and(Value::is_object)
+            || changes.contains_key(pointer)
+        {
+            return Err("This Lunar field cannot be added.".into());
+        }
+        selected.insert(parent);
+    }
     let mut tokens = ScalarTokens {
         text: content,
         offset: usize::from(content.starts_with('\u{feff}')) * 3,
@@ -187,6 +273,28 @@ pub(crate) fn replace_scalar_values(
         let value = serde_json::to_string(value)
             .map_err(|_| "The Lunar settings could not be prepared.".to_string())?;
         replacements.push((span, value));
+    }
+    for (pointer, value) in additions {
+        let parent = pointer.strip_suffix("/enabled").unwrap();
+        let span = tokens
+            .spans
+            .remove(parent)
+            .ok_or("The Lunar setting location could not be verified.")?;
+        let comma = if document
+            .pointer(parent)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .is_empty()
+        {
+            ""
+        } else {
+            ","
+        };
+        let value = serde_json::to_string(value)
+            .map_err(|_| "The Lunar settings could not be prepared.".to_string())?;
+        let offset = span.end - 1;
+        replacements.push((offset..offset, format!("{comma}\"enabled\":{value}")));
     }
     replacements.sort_by_key(|replacement| std::cmp::Reverse(replacement.0.start));
     let mut output = content.to_owned();
@@ -268,6 +376,9 @@ impl ScalarTokens<'_> {
                     }
                 }
                 self.offset += 1;
+                if self.selected.contains(pointer) {
+                    self.spans.insert(pointer.into(), start..self.offset);
+                }
             }
             Some(b'[') => {
                 self.offset += 1;
@@ -411,10 +522,11 @@ mod tests {
     fn only_verified_scalar_fields_are_exposed() {
         let data = r#"{"FPS":{"enabled":true,"x":0.2,"y":0.4,"futureData":{"token":"private"}},"WAYPOINTS":{"enabled":true},"SERVER_ADDRESS":{"x":0.1},"version":99}"#;
         let settings = parse_settings(data, "mods", "default").unwrap();
-        assert_eq!(settings.len(), 3);
+        assert_eq!(settings.len(), 4);
         assert!(settings
             .iter()
-            .all(|setting| setting.pointer.starts_with("/FPS/")));
+            .all(|setting| setting.pointer.starts_with("/FPS/")
+                || setting.pointer == "/WAYPOINTS/enabled"));
     }
 
     #[test]
@@ -455,5 +567,100 @@ mod tests {
         assert!(parse_document(r#"{"FPS":{"x":0.2,"x":0.3}}"#).is_err());
         assert!(parse_document("").is_err());
         assert!(parse_document("[]").is_err());
+    }
+
+    #[test]
+    fn verified_missing_module_enabled_fields_are_inserted_without_reformatting() {
+        let data = "\u{feff}{\r\n \"F\\u0050S\": {\"x\":0.2, \"unknown\":0.123456789012345678901},\r\n \"CPS\": {  }, \"future\":{\"token\":\"unshared\"}\r\n}\r\n";
+        let settings = parse_settings(
+            r#"{"FPS":{"enabled":true,"x":0.6},"CPS":{"enabled":false}}"#,
+            "mods",
+            "source",
+        )
+        .unwrap();
+        assert!(settings
+            .iter()
+            .filter(|setting| setting.pointer.ends_with("/enabled"))
+            .all(|setting| can_insert_module_enabled(&parse_document(data).unwrap(), setting)));
+        assert_eq!(
+            merge_settings(data, &settings).unwrap(),
+            "\u{feff}{\r\n \"F\\u0050S\": {\"x\":0.6, \"unknown\":0.123456789012345678901,\"enabled\":true},\r\n \"CPS\": {  \"enabled\":false}, \"future\":{\"token\":\"unshared\"}\r\n}\r\n"
+        );
+    }
+
+    #[test]
+    fn sparse_module_updates_reject_unknown_modules_types_and_missing_parents() {
+        let enabled = parse_settings(r#"{"FPS":{"enabled":true}}"#, "mods", "source").unwrap();
+        for data in [
+            r#"{}"#,
+            r#"{"FPS":null}"#,
+            r#"{"FPS":[]}"#,
+            r#"{"FPS":{"enabled":"true"}}"#,
+        ] {
+            assert!(!can_insert_module_enabled(
+                &parse_document(data).unwrap(),
+                &enabled[0]
+            ));
+            assert!(merge_settings(data, &enabled).is_err());
+        }
+        let mut unknown = enabled[0].clone();
+        unknown.pointer = "/UNVERIFIED_MOD/enabled".into();
+        assert!(!can_insert_module_enabled(
+            &parse_document(r#"{"UNVERIFIED_MOD":{}}"#).unwrap(),
+            &unknown
+        ));
+        assert!(merge_settings(r#"{"UNVERIFIED_MOD":{}}"#, &[unknown]).is_err());
+        let scalar = parse_settings(r#"{"FPS":{"x":0.6}}"#, "mods", "source").unwrap();
+        assert!(merge_settings(r#"{"FPS":{}}"#, &scalar).is_err());
+        assert!(
+            merge_settings(r#"{"FPS":{}}"#, &[enabled[0].clone(), enabled[0].clone()]).is_err()
+        );
+    }
+
+    #[test]
+    fn reviewed_numeric_representations_preserve_the_destination_type() {
+        let source = parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"3"}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap();
+        let target = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":1}},"TIME_CHANGER":{"options":{"timeChangerTime":"2"}},"unknown":0.123456789012345678901}"#;
+        let output = merge_settings(target, &source).unwrap();
+        assert_eq!(
+            output,
+            target
+                .replace("\"flyBoostAmount\":1", "\"flyBoostAmount\":3")
+                .replace("\"timeChangerTime\":\"2\"", "\"timeChangerTime\":\"4\"")
+        );
+        assert_eq!(
+            value_for_existing_type("mods", "/FPS/x", &json!(0.2), &json!("0.3")),
+            None
+        );
+        assert_eq!(
+            value_for_existing_type(
+                "mods",
+                "/TIME_CHANGER/options/timeChangerTime",
+                &json!("2"),
+                &json!(1000000)
+            ),
+            None
+        );
+        assert_eq!(
+            value_for_existing_type(
+                "mods",
+                "/TIME_CHANGER/options/timeChangerTime",
+                &json!(2),
+                &json!("NaN")
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn reviewed_module_toggles_share_no_macro_location_or_server_payload() {
+        let settings = parse_settings(r#"{"WAYPOINTS":{"enabled":true,"waypoints":[{"x":1,"server":"unshared.invalid"}]},"AUTO_TEXT_ACTIONS":{"enabled":false,"actions":["unshared"]},"SERVER_ADDRESS":{"enabled":true,"address":"unshared.invalid"},"OVERLAY_MOD":{"enabled":true},"ITEM_CUSTOMIZER":{"enabled":false},"UNVERIFIED_MOD":{"enabled":true}}"#, "mods", "source").unwrap();
+        assert_eq!(settings.len(), 5);
+        assert!(settings
+            .iter()
+            .all(|setting| setting.value.is_boolean() && setting.pointer.ends_with("/enabled")));
+        assert!(!settings
+            .iter()
+            .any(|setting| setting.pointer.starts_with("/UNVERIFIED_MOD/")));
     }
 }

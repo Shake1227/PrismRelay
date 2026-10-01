@@ -1,20 +1,23 @@
-# Prism Relay 1.0.1
+# Prism Relay 1.0.2
 
-Lunar Clientで、共有コードの読み込みに成功してもゲーム設定が反映されない問題と、適用先が複数あると別のプロフィールが自動で選ばれる問題を修正しました。
+共有コードの読み込みで設定が反映されない問題を修正しました。
 
-- 保存先が複数ある場合は、適用するプロフィールを選択
-- Lunarの `optionsLC.txt`（JSON形式）に対応。バージョン別フォルダでは `options.txt` とまとめて更新・バックアップ
-- LunarとMinecraftで保存形式が異なるFOVを変換
-- 差分・確認・完了画面に、対象のプロフィールと設定ファイルを表示
-- 適用に失敗した後は、最新の差分を確認して再試行
-- Mac・Windowsで、異なる共有コードの連続適用とバックアップからの復元を検証
+- Minecraftの起動構成選択を廃止し、既定の設定フォルダを使用
+- 同じフォルダの `options.txt` と `optionsLC.txt` をまとめて更新・バックアップ
+- Lunarのランチャーや補助プロセスをゲーム起動中と判定する問題を修正
+- 使用中のLunar GUIプリセットを初期選択
+- Lunar MODの有効・無効を、保存先で省略された項目にも適用
+- MODの有効・無効の対応範囲と、一部の数値設定の互換性を改善
+- 完了画面を表示位置に戻し、適用後の演出を修正
 - 適用時アニメーションを追加しました。
 
-Lunar Clientの操作・画面設定は、**Minecraft（ゲーム設定）**の適用先で使用中のLunarバージョンを選びます。**Lunar（HUD・MOD設定）**はHUDやMODのプロフィールです。
+LunarのHUD・MOD設定は、使用中のGUIプリセットを初期選択します。必要に応じて変更してください。Minecraftのゲーム設定は、Windowsでは `%APPDATA%/.minecraft`、Macでは `~/Library/Application Support/minecraft` が対象です。設定フォルダを変更している場合は、アプリの環境設定からそのフォルダを指定できます。
 
-ゲームを終了してから適用し、完了後に起動してください。Lunar 1.21.11の設定フォルダが `1.21` の場合は、適用先で「Lunar 1.21」を選びます。
+Lunar独自MODは、確認済みの有効・無効と設定項目を共有します。共有元で省略された既定値はコードに含まれません。
 
-Windowsはx64・ARM64のMSIまたはsetup.exe、MacはApple Silicon・IntelのDMGを選んでインストールしてください。対応するソースは、添付の `prism-relay-v1.0.1-source.tar.gz` です。
+ゲームを終了してから適用し、完了後に起動してください。
+
+Windowsはx64・ARM64のMSIまたはsetup.exe、MacはApple Silicon・IntelのDMGを選んでインストールしてください。対応するソースは、添付の `prism-relay-v1.0.2-source.tar.gz` です。
 
 ### Macで初めて開くとき
 

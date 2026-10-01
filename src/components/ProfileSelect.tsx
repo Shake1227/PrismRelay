@@ -1,6 +1,5 @@
 import { useI18n } from "../i18n";
 import type { ScanReport, TargetProfiles } from "../models";
-import { minecraftProfiles } from "../utils/profiles";
 import { ApplicationIcon } from "./ApplicationIcon";
 export function ProfileSelect({
   scan,
@@ -14,37 +13,9 @@ export function ProfileSelect({
   target?: boolean;
 }) {
   const { t } = useI18n();
+  if (!scan.lunarProfiles.length) return null;
   return (
     <div className="profile-selects">
-      <label>
-        <span className="profile-label">
-          <ApplicationIcon
-            source="minecraft"
-            data={scan.applicationIcons?.minecraft}
-            size={15}
-            decorative
-          />
-          {target ? (
-            t("Minecraft（ゲーム設定）")
-          ) : (
-            <>Minecraft {t("プロフィール")}</>
-          )}
-        </span>
-        <select
-          value={value.minecraftProfile || ""}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              minecraftProfile: event.target.value || undefined,
-            })
-          }
-        >
-          <option value="">{t("未選択")}</option>
-          {minecraftProfiles(scan).map((profile) => (
-            <option key={profile}>{profile}</option>
-          ))}
-        </select>
-      </label>
       <label>
         <span className="profile-label">
           <ApplicationIcon

@@ -1,5 +1,5 @@
 import { useI18n } from "../i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowDownToLine,
@@ -56,6 +56,14 @@ export function Import({
   const previewGuard = useRef(createRequestGuard());
   const fileInput = useRef<HTMLInputElement>(null);
   const previewPanel = useRef<HTMLElement>(null);
+  const donePanel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!done) return;
+    donePanel.current?.closest<HTMLElement>(".main-content")?.scrollTo({
+      top: 0,
+      behavior: "instant",
+    });
+  }, [done]);
   useEffect(() => {
     if (!preview) return;
     const frame = window.requestAnimationFrame(() => {
@@ -125,12 +133,24 @@ export function Import({
   };
   const selectedSettings =
     decoded?.settings.filter((setting) => selected.has(setting.id)) || [];
+  const ambiguousShare = ["minecraft", "lunar"].some(
+    (source) =>
+      new Set(
+        decoded?.settings
+          .filter((setting) => setting.source === source)
+          .map((setting) => setting.profile),
+      ).size > 1,
+  );
+  const missingMinecraft = selectedSettings.some(
+    (setting) => setting.source === "minecraft" && !profiles.minecraftProfile,
+  );
   const missingTarget = selectedSettings.some((setting) =>
     setting.source === "minecraft"
       ? !profiles.minecraftProfile
       : !profiles.lunarProfile,
   );
   const makePreview = async () => {
+    if (ambiguousShare || missingTarget || !selected.size) return;
     const isCurrent = previewGuard.current.begin();
     setBusy(true);
     try {
@@ -228,7 +248,7 @@ export function Import({
     );
   if (done)
     return (
-      <section className="glass-panel code-result">
+      <section className="glass-panel code-result" ref={donePanel}>
         <CrystalCompletion />
         <h2>
           {isDesktop
@@ -353,56 +373,69 @@ export function Import({
             </span>
             <span>{formatDate(decoded.createdAt, locale)}</span>
           </div>
-          <section className="glass-panel selection-panel">
-            <div className="panel-heading">
-              <div>
-                <h3>{t("適用する設定を選択")}</h3>
-                <p>{t("受け取った設定から、さらに絞り込めます。")}</p>
+          {ambiguousShare ? (
+            <section className="glass-panel paste-panel">
+              <p className="inline-warning">
+                {t(
+                  "このコードには複数のプロフィールが含まれています。アプリごとに1つのプロフィールで共有コードを作成してください。",
+                )}
+              </p>
+            </section>
+          ) : (
+            <section className="glass-panel selection-panel">
+              <div className="panel-heading">
+                <div>
+                  <h3>{t("適用する設定を選択")}</h3>
+                  <p>{t("受け取った設定から、さらに絞り込めます。")}</p>
+                </div>
               </div>
-            </div>
-            <ProfileSelect
-              scan={scan}
-              value={profiles}
-              target
-              onChange={(value) => {
-                previewGuard.current.invalidate();
-                setProfiles(value);
-                setPreview(null);
-              }}
-            />
-            <p className="import-profile-help">
-              {t(
-                "Lunar Clientの操作・画面設定は、Minecraftの適用先で使用中のLunarバージョンを選んでください。HUD・MOD設定はLunarのプロフィールを選びます。",
+              {decoded.settings.some(
+                (setting) => setting.source === "lunar",
+              ) && (
+                <ProfileSelect
+                  scan={scan}
+                  value={profiles}
+                  target
+                  onChange={(value) => {
+                    previewGuard.current.invalidate();
+                    setProfiles(value);
+                    setPreview(null);
+                  }}
+                />
               )}
-            </p>
-            <TreePicker
-              settings={decoded.settings}
-              applicationIcons={scan.applicationIcons}
-              selected={selected}
-              onChange={(value) => {
-                previewGuard.current.invalidate();
-                setSelected(value);
-                setPreview(null);
-              }}
-            />
-            <div className="panel-action-row">
-              <span>
-                {missingTarget
-                  ? t("適用先のプロフィールを選択してください")
-                  : t("{0} 項目の適用先を確認します", {
-                      "0": selected.size,
-                    })}
-              </span>
-              <button
-                className="button primary"
-                disabled={!selected.size || missingTarget || busy}
-                onClick={() => void makePreview()}
-              >
-                {t("差分をプレビュー")}
-                <ArrowDown size={16} />
-              </button>
-            </div>
-          </section>
+              <TreePicker
+                settings={decoded.settings}
+                applicationIcons={scan.applicationIcons}
+                selected={selected}
+                onChange={(value) => {
+                  previewGuard.current.invalidate();
+                  setSelected(value);
+                  setPreview(null);
+                }}
+              />
+              <div className="panel-action-row">
+                <span>
+                  {missingMinecraft
+                    ? t(
+                        "Minecraftの設定フォルダを検出できません。設定画面でフォルダを指定してください。",
+                      )
+                    : missingTarget
+                      ? t("適用先のプロフィールを選択してください")
+                      : t("{0} 項目の適用先を確認します", {
+                          "0": selected.size,
+                        })}
+                </span>
+                <button
+                  className="button primary"
+                  disabled={!selected.size || missingTarget || busy}
+                  onClick={() => void makePreview()}
+                >
+                  {t("差分をプレビュー")}
+                  <ArrowDown size={16} />
+                </button>
+              </div>
+            </section>
+          )}
           {preview && (
             <section className="glass-panel diff-panel" ref={previewPanel}>
               <div className="panel-heading">

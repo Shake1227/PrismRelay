@@ -74,13 +74,8 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
     let mut seen = BTreeSet::new();
     let mut versions = BTreeSet::new();
     let mut lunar_profiles = BTreeSet::new();
-    for (index, root) in minecraft_roots.iter().enumerate() {
-        let profile = if index == 0 {
-            "Vanilla".to_owned()
-        } else {
-            format!("Vanilla {}", index + 1)
-        };
-        inspect_minecraft(root, &profile, false, &mut report, &mut seen);
+    if let Some(root) = minecraft_roots.first() {
+        inspect_minecraft(root, "Minecraft", &mut report, &mut seen);
         for directory in child_directories(&root.join("versions"), &mut report.warnings) {
             if let Some(version) = directory
                 .file_name()
@@ -90,28 +85,8 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
                 versions.insert(version.split('-').next().unwrap_or(version).into());
             }
         }
-        let mut remaining = MAX_DIRECTORIES;
-        for directory in descendant_directories(
-            &root.join("versions"),
-            2,
-            &mut remaining,
-            &mut report.warnings,
-        ) {
-            let label = directory
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("Version");
-            inspect_minecraft(
-                &directory,
-                &format!("Vanilla {label}"),
-                false,
-                &mut report,
-                &mut seen,
-            );
-        }
     }
-    for root in lunar_roots {
-        inspect_minecraft(&root, "Lunar Default", true, &mut report, &mut seen);
+    if let Some(root) = lunar_roots.first() {
         let game = if root.join("settings").join("game").is_dir() {
             root.join("settings").join("game")
         } else {
@@ -137,31 +112,15 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
                 &mut lunar_profiles,
             );
         }
-        let profile_root = root.join("profiles");
-        let mut remaining = MAX_DIRECTORIES;
-        for directory in
-            descendant_directories(&profile_root, 3, &mut remaining, &mut report.warnings)
-        {
-            let name = directory
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("Profile");
-            let relative = directory.strip_prefix(&profile_root).unwrap_or(&directory);
-            let profile = format!(
-                "Lunar {}",
-                relative.to_string_lossy().replace(['/', '\\'], " · ")
-            );
-            inspect_minecraft(&directory, &profile, true, &mut report, &mut seen);
-            if is_version_name(name) {
-                versions.insert(name.split('-').next().unwrap_or(name).into());
-            }
-        }
+        report.active_lunar_profile = active_lunar_profile(&game, &lunar_profiles);
     }
     report.minecraft_versions = versions.into_iter().collect();
     report.lunar_profiles = lunar_profiles.into_iter().collect();
     report.running_processes = detect_running_processes();
     if !report.running_processes.is_empty() {
-        report.warnings.push("Minecraft, Lunar Client, or a Java game may be running. Close the game before changing settings.".into());
+        report
+            .warnings
+            .push("Minecraft is running. Close the game before changing settings.".into());
     }
     report.warnings.sort();
     report.warnings.dedup();
@@ -193,23 +152,45 @@ fn roots(override_path: Option<&str>, candidates: Vec<PathBuf>) -> Result<Vec<Pa
     } else {
         candidates
     };
-    let mut found = BTreeSet::new();
+    let mut found = Vec::new();
+    let mut seen = BTreeSet::new();
     for path in requested {
         let Ok(metadata) = fs::symlink_metadata(&path) else {
             continue;
         };
         if metadata.is_dir() && !metadata.file_type().is_symlink() {
             if let Ok(path) = dunce::canonicalize(&path) {
-                found.insert(path);
+                if seen.insert(path.clone()) {
+                    found.push(path);
+                }
             }
         }
     }
-    Ok(found.into_iter().collect())
+    Ok(found)
 }
 
 fn safe_directory(path: &Path) -> bool {
     fs::symlink_metadata(path)
         .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
+}
+
+fn active_lunar_profile(game: &Path, profiles: &BTreeSet<String>) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct ProfileEntry {
+        name: String,
+        active: bool,
+    }
+    let (_, content) = read_allowed_file(&game.join("profile_manager.json")).ok()?;
+    let entries: Vec<ProfileEntry> =
+        serde_json::from_str(content.strip_prefix('\u{feff}').unwrap_or(&content)).ok()?;
+    if entries.len() > MAX_DIRECTORIES {
+        return None;
+    }
+    let active: Vec<_> = entries.into_iter().filter(|entry| entry.active).collect();
+    match active.as_slice() {
+        [entry] if profiles.contains(&entry.name) => Some(entry.name.clone()),
+        _ => None,
+    }
 }
 
 fn child_directories(path: &Path, warnings: &mut Vec<String>) -> Vec<PathBuf> {
@@ -236,35 +217,6 @@ fn child_directories(path: &Path, warnings: &mut Vec<String>) -> Vec<PathBuf> {
     children
 }
 
-fn descendant_directories(
-    path: &Path,
-    depth: usize,
-    remaining: &mut usize,
-    warnings: &mut Vec<String>,
-) -> Vec<PathBuf> {
-    if depth == 0 || *remaining == 0 {
-        return Vec::new();
-    }
-    let mut found = Vec::new();
-    for directory in child_directories(path, warnings) {
-        if *remaining == 0 {
-            warnings.push(
-                "The scan limit was reached. Choose a specific settings folder to continue.".into(),
-            );
-            break;
-        }
-        *remaining -= 1;
-        found.push(directory.clone());
-        found.extend(descendant_directories(
-            &directory,
-            depth - 1,
-            remaining,
-            warnings,
-        ));
-    }
-    found
-}
-
 fn read_allowed_file(path: &Path) -> Result<(PathBuf, String), String> {
     let metadata =
         fs::symlink_metadata(path).map_err(|_| "A settings file could not be read.".to_string())?;
@@ -289,7 +241,6 @@ fn read_allowed_file(path: &Path) -> Result<(PathBuf, String), String> {
 fn inspect_minecraft(
     directory: &Path,
     profile: &str,
-    lunar_profile: bool,
     report: &mut ScanReport,
     seen: &mut BTreeSet<PathBuf>,
 ) {
@@ -304,7 +255,7 @@ fn inspect_minecraft(
             true
         }
     };
-    if lunar_profile && lunar_options {
+    if lunar_options {
         let primary =
             inspect_minecraft_file(directory, profile, "optionsLC.txt", "options", report, seen);
         let legacy = inspect_minecraft_file(
@@ -358,26 +309,6 @@ fn inspect_minecraft(
         report,
         seen,
     );
-    if !lunar_profile && lunar_options {
-        if let Some((path, content)) = inspect_minecraft_file(
-            directory,
-            &format!("Lunar {profile}"),
-            "optionsLC.txt",
-            "options",
-            report,
-            seen,
-        ) {
-            match crate::minecraft::parse_file(
-                &content,
-                "options",
-                &format!("Lunar {profile}"),
-                &path,
-            ) {
-                Ok(settings) => append_minecraft_settings(settings, report),
-                Err(error) => report.warnings.push(error),
-            }
-        }
-    }
 }
 
 fn append_minecraft_settings(
@@ -504,36 +435,16 @@ fn is_version_name(name: &str) -> bool {
 }
 
 pub fn detect_running_processes() -> Vec<String> {
-    let system = sysinfo::System::new_all();
-    let mut found = BTreeSet::new();
-    for process in system.processes().values() {
-        let name = process.name().to_string_lossy().to_ascii_lowercase();
-        if name.contains("lunar") {
-            found.insert("Lunar Client".into());
-        }
-        if name.contains("minecraft") {
-            found.insert("Minecraft".into());
-        }
-        if matches!(name.as_str(), "java" | "javaw" | "java.exe" | "javaw.exe") {
-            found.insert("Java (possible Minecraft)".into());
-        }
-    }
-    found.into_iter().collect()
+    crate::game_processes::detect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn inspect_profile(path: &Path, lunar: bool) -> ScanReport {
+    fn inspect_profile(path: &Path) -> ScanReport {
         let mut report = ScanReport::default();
-        inspect_minecraft(
-            path,
-            if lunar { "Lunar Test" } else { "Vanilla" },
-            lunar,
-            &mut report,
-            &mut BTreeSet::new(),
-        );
+        inspect_minecraft(path, "Minecraft", &mut report, &mut BTreeSet::new());
         report
     }
 
@@ -546,7 +457,7 @@ mod tests {
         fs::write(root.join("optionsLC.txt"), json).unwrap();
         fs::write(root.join("options.txt"), text).unwrap();
         fs::write(root.join("accounts.json"), [0xff, 0x00]).unwrap();
-        let report = inspect_profile(&root, true);
+        let report = inspect_profile(&root);
         assert_eq!(report.files.len(), 2);
         assert_eq!(report.files[0].file_kind, "options");
         assert!(report.files[0].path.ends_with("optionsLC.txt"));
@@ -566,7 +477,7 @@ mod tests {
         assert!(report.settings.iter().all(|setting| {
             setting.source == "minecraft"
                 && setting.file_kind == "options"
-                && setting.profile == "Lunar Test"
+                && setting.profile == "Minecraft"
         }));
         assert_eq!(
             fs::read(root.join("optionsLC.txt")).unwrap(),
@@ -581,7 +492,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(temporary.path()).unwrap();
         fs::write(root.join("options.txt"), "fov:0.5\r\nguiScale:2\r\n").unwrap();
-        let report = inspect_profile(&root, true);
+        let report = inspect_profile(&root);
         assert_eq!(report.files.len(), 1);
         assert_eq!(report.files[0].file_kind, "options");
         assert!(report.files[0].path.ends_with("options.txt"));
@@ -601,7 +512,7 @@ mod tests {
             &[0xff],
         ] {
             fs::write(root.join("optionsLC.txt"), damaged).unwrap();
-            let report = inspect_profile(&root, true);
+            let report = inspect_profile(&root);
             assert!(report.settings.is_empty());
             assert!(!report.warnings.is_empty());
             assert!(report
@@ -634,7 +545,7 @@ mod tests {
             "fov:0.5\nguiScale:2\ngamma:1\ngraphicsMode:1\n",
         )
         .unwrap();
-        let report = inspect_profile(&root, true);
+        let report = inspect_profile(&root);
         let pointers: BTreeSet<_> = report
             .settings
             .iter()
@@ -644,22 +555,16 @@ mod tests {
     }
 
     #[test]
-    fn lunar_json_in_vanilla_folder_uses_an_independent_profile() {
+    fn default_minecraft_folder_combines_lunar_and_regular_options() {
         let temporary = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(temporary.path()).unwrap();
         fs::write(root.join("optionsLC.txt"), r#"{"fov":"80"}"#).unwrap();
         fs::write(root.join("options.txt"), "fov:-0.5\n").unwrap();
-        let report = inspect_profile(&root, false);
+        let report = inspect_profile(&root);
         assert_eq!(report.files.len(), 2);
-        assert_eq!(report.settings.len(), 2);
-        assert!(report.files.iter().all(|file| file.file_kind == "options"));
-        let profiles: BTreeMap<_, _> = report
-            .settings
-            .iter()
-            .map(|setting| (setting.profile.as_str(), setting.value.as_str().unwrap()))
-            .collect();
-        assert_eq!(profiles.get("Vanilla"), Some(&"-0.5"));
-        assert_eq!(profiles.get("Lunar Vanilla"), Some(&"0.25"));
+        assert_eq!(report.settings.len(), 1);
+        assert!(report.files.iter().all(|file| file.profile == "Minecraft"));
+        assert_eq!(report.settings[0].value, serde_json::json!("0.25"));
         assert_eq!(
             report
                 .files
@@ -671,19 +576,19 @@ mod tests {
     }
 
     #[test]
-    fn explicit_lunar_game_folder_is_scanned_without_a_profiles_parent() {
+    fn explicit_game_folder_uses_the_same_default_minecraft_target() {
         let temporary = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(temporary.path()).unwrap();
         fs::write(root.join("optionsLC.txt"), r#"{"guiScale":"2"}"#).unwrap();
         fs::write(root.join("options.txt"), "guiScale:1\n").unwrap();
         let report = scan(ScanRequest {
-            minecraft_root: Some(root.join("absent").to_string_lossy().into()),
-            lunar_root: Some(root.to_string_lossy().into()),
+            minecraft_root: Some(root.to_string_lossy().into()),
+            lunar_root: Some(root.join("absent").to_string_lossy().into()),
         })
         .unwrap();
         assert_eq!(report.files.len(), 2);
         assert_eq!(report.settings.len(), 1);
-        assert_eq!(report.settings[0].profile, "Lunar Default");
+        assert_eq!(report.settings[0].profile, "Minecraft");
         assert_eq!(report.settings[0].value, serde_json::json!("2"));
     }
 
@@ -703,7 +608,7 @@ mod tests {
             if !exists {
                 fs::remove_file(&external).unwrap();
             }
-            let report = inspect_profile(&game, true);
+            let report = inspect_profile(&game);
             assert!(report.settings.is_empty());
             assert!(!report.warnings.is_empty());
             assert_eq!(report.files.len(), 1);
@@ -730,6 +635,64 @@ mod tests {
         assert!(lunar.contains(&home.join(".lunarclient")));
         let (mac, _) = default_candidate_paths("macOS", home, None);
         assert!(mac.contains(&home.join("Library/Application Support/minecraft")));
+    }
+
+    #[test]
+    fn candidate_order_preserves_the_os_default_before_fallbacks() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let preferred = root.join("z-default");
+        let fallback = root.join("a-fallback");
+        fs::create_dir(&preferred).unwrap();
+        fs::create_dir(&fallback).unwrap();
+        assert_eq!(
+            roots(
+                None,
+                vec![preferred.clone(), fallback.clone(), preferred.clone()]
+            )
+            .unwrap(),
+            vec![preferred, fallback]
+        );
+    }
+
+    #[test]
+    fn active_lunar_preset_matches_one_discovered_directory_only() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let game = root.join("settings/game");
+        for name in ["Alpha Other", "Zulu Active"] {
+            fs::create_dir_all(game.join(name)).unwrap();
+            fs::write(
+                game.join(name).join("mods.json"),
+                r#"{"FPS":{"enabled":true}}"#,
+            )
+            .unwrap();
+        }
+        let request = ScanRequest {
+            minecraft_root: Some(root.join("absent").to_string_lossy().into()),
+            lunar_root: Some(root.to_string_lossy().into()),
+        };
+        fs::write(game.join("profile_manager.json"),
+            r#"[{"name":"Alpha Other","active":false,"server":"unshared.example"},{"name":"Zulu Active","active":true,"displayName":"unshared"}]"#).unwrap();
+        let report = scan(request.clone()).unwrap();
+        assert_eq!(report.active_lunar_profile.as_deref(), Some("Zulu Active"));
+        assert_eq!(report.files.len(), 2);
+        assert!(!report.settings.iter().any(
+            |setting| setting.pointer.contains("server") || setting.pointer.contains("active")
+        ));
+        for invalid in [
+            r#"[{"name":"../outside","active":true}]"#,
+            r#"[{"name":"Missing","active":true}]"#,
+            r#"[{"name":"Alpha Other","active":true},{"name":"Zulu Active","active":true}]"#,
+            r#"[{"name":"Zulu Active","active":false}]"#,
+            r#"[{"name":"Zulu Active","name":"Alpha Other","active":true}]"#,
+        ] {
+            fs::write(game.join("profile_manager.json"), invalid).unwrap();
+            assert!(scan(request.clone())
+                .unwrap()
+                .active_lunar_profile
+                .is_none());
+        }
     }
 
     #[test]
@@ -765,15 +728,18 @@ mod tests {
         let lunar = root.join("lunar");
         let settings = lunar.join("settings/game/Example");
         let game = lunar.join("profiles/1.21");
+        let version = minecraft.join("versions/1.21");
         fs::create_dir_all(&minecraft).unwrap();
         fs::create_dir_all(&settings).unwrap();
         fs::create_dir_all(&game).unwrap();
+        fs::create_dir_all(&version).unwrap();
         let original = "fov:0.5\nunknownSecret:private\n";
         fs::write(minecraft.join("options.txt"), original).unwrap();
         fs::write(game.join("options.txt"), "guiScale:2\n").unwrap();
+        fs::write(version.join("options.txt"), "guiScale:3\n").unwrap();
         fs::write(
             settings.join("mods.json"),
-            r#"{"FPS":{"enabled":true,"x":0.25},"WAYPOINTS":{"enabled":true}}"#,
+            r#"{"FPS":{"enabled":true,"x":0.25},"WAYPOINTS":{"enabled":true,"server":"unshared.example","coordinates":[1,2,3]}}"#,
         )
         .unwrap();
         fs::write(
@@ -788,8 +754,26 @@ mod tests {
         .unwrap();
         assert!(report.minecraft_detected && report.lunar_detected);
         assert!(report.minecraft_versions.contains(&"1.21".into()));
-        assert_eq!(report.files.len(), 3);
+        assert_eq!(report.files.len(), 2);
         assert_eq!(report.settings.len(), 4);
+        assert!(!report
+            .settings
+            .iter()
+            .any(|setting| setting.pointer.contains("coordinates")
+                || setting.pointer.contains("server")));
+        assert!(report
+            .files
+            .iter()
+            .all(|file| !file.path.contains("profiles/")));
+        assert!(report
+            .files
+            .iter()
+            .all(|file| !file.path.contains("versions/")));
+        assert!(report
+            .settings
+            .iter()
+            .filter(|setting| setting.source == "minecraft")
+            .all(|setting| setting.profile == "Minecraft"));
         assert_eq!(
             fs::read_to_string(minecraft.join("options.txt")).unwrap(),
             original

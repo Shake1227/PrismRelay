@@ -25,19 +25,30 @@ export function minecraftVersion(
   );
 }
 
+export function defaultMinecraftProfile(scan: ScanReport): string | undefined {
+  const available = minecraftProfiles(scan);
+  return available.length === 1 ? available[0] : undefined;
+}
+
+export function defaultLunarProfile(
+  scan: ScanReport,
+  selected?: string,
+): string | undefined {
+  if (selected && scan.lunarProfiles.includes(selected)) return selected;
+  if (
+    scan.activeLunarProfile &&
+    scan.lunarProfiles.includes(scan.activeLunarProfile)
+  )
+    return scan.activeLunarProfile;
+  return scan.lunarProfiles.length === 1 ? scan.lunarProfiles[0] : undefined;
+}
+
 export function reconcileProfiles(
   scan: ScanReport,
   current: TargetProfiles,
 ): TargetProfiles {
-  const availableMinecraft = minecraftProfiles(scan);
-  const minecraftProfile = availableMinecraft.includes(
-    current.minecraftProfile || "",
-  )
-    ? current.minecraftProfile
-    : availableMinecraft[0];
-  const lunarProfile = scan.lunarProfiles.includes(current.lunarProfile || "")
-    ? current.lunarProfile
-    : scan.lunarProfiles[0];
+  const minecraftProfile = defaultMinecraftProfile(scan);
+  const lunarProfile = defaultLunarProfile(scan, current.lunarProfile);
   return minecraftProfile === current.minecraftProfile &&
     lunarProfile === current.lunarProfile
     ? current
@@ -48,19 +59,5 @@ export function reconcileImportProfiles(
   scan: ScanReport,
   current: TargetProfiles = {},
 ): TargetProfiles {
-  const choose = (available: string[], selected?: string) =>
-    selected && available.includes(selected)
-      ? selected
-      : available.length === 1
-        ? available[0]
-        : undefined;
-  const minecraftProfile = choose(
-    minecraftProfiles(scan),
-    current.minecraftProfile,
-  );
-  const lunarProfile = choose(scan.lunarProfiles, current.lunarProfile);
-  return minecraftProfile === current.minecraftProfile &&
-    lunarProfile === current.lunarProfile
-    ? current
-    : { minecraftProfile, lunarProfile };
+  return reconcileProfiles(scan, current);
 }

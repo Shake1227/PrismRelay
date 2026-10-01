@@ -476,11 +476,7 @@ pub fn validate_content(path: &Path, bytes: &[u8]) -> Result<(), String> {
         name,
         "mods.json" | "general.json" | "controls.json" | "performance.json"
     ) {
-        let value: serde_json::Value = serde_json::from_str(content)
-            .map_err(|_| "設定ファイルを検証できません。".to_string())?;
-        if !value.is_object() {
-            return Err("設定ファイルの構造が無効です。".into());
-        }
+        crate::lunar::parse_document(content)?;
     } else {
         return Err("このファイルは設定の書き込みに対応していません。".into());
     }
@@ -491,6 +487,22 @@ pub fn validate_content(path: &Path, bytes: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::model::ScanFile;
+
+    #[test]
+    fn lunar_backup_validation_matches_the_strict_parser_and_preserves_bom() {
+        let original = "\u{feff}{\r\n\"FPS\":{\"enabled\":true}\r\n}\r\n";
+        for name in [
+            "mods.json",
+            "general.json",
+            "controls.json",
+            "performance.json",
+        ] {
+            assert!(validate_content(Path::new(name), original.as_bytes()).is_ok());
+            for invalid in ["[]", "{\"x\":1,\"x\":2}", "{\"x\":{\"y\":1,\"y\":2}}"] {
+                assert!(validate_content(Path::new(name), invalid.as_bytes()).is_err());
+            }
+        }
+    }
 
     #[test]
     fn lunar_game_backups_accept_only_strict_json_objects() {
@@ -524,23 +536,25 @@ mod tests {
             let directory = tempfile::tempdir().unwrap();
             let root = dunce::canonicalize(directory.path()).unwrap();
             let minecraft = root.join("minecraft");
-            let version = minecraft.join("versions/1.21");
-            fs::create_dir_all(&version).unwrap();
-            let paths = vec![minecraft.join("options.txt"), version.join("options.txt")];
+            let lunar = root.join("lunar");
+            let preset = lunar.join("settings/game/Default");
+            fs::create_dir_all(&minecraft).unwrap();
+            fs::create_dir_all(&preset).unwrap();
+            let paths = vec![minecraft.join("options.txt"), preset.join("mods.json")];
             let original = vec![
                 b"fov:0.5\nunknownKey:preserved\n".to_vec(),
-                b"guiScale:2\nunknownVersionKey:preserved\n".to_vec(),
+                b"{\"FPS\":{\"enabled\":false},\"unknown\":\"preserved\"}\n".to_vec(),
             ];
             let imported = vec![
                 b"fov:0.75\nunknownKey:preserved\n".to_vec(),
-                b"guiScale:3\nunknownVersionKey:preserved\n".to_vec(),
+                b"{\"FPS\":{\"enabled\":true},\"unknown\":\"preserved\"}\n".to_vec(),
             ];
             for (path, contents) in paths.iter().zip(&original) {
                 fs::write(path, contents).unwrap();
             }
             let request = ScanRequest {
                 minecraft_root: Some(minecraft.to_string_lossy().into()),
-                lunar_root: Some(root.join("missing-lunar").to_string_lossy().into()),
+                lunar_root: Some(lunar.to_string_lossy().into()),
             };
             let report = crate::scanner::scan(request.clone()).unwrap();
             assert_eq!(report.files.len(), 2);
@@ -717,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn consecutive_windows_codes_update_chosen_game_profiles_and_restore() {
+    fn consecutive_windows_codes_update_default_game_settings_and_restore() {
         let directory = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(directory.path()).unwrap();
         let minecraft = root.join("Library/Application Support/minecraft");
@@ -728,12 +742,15 @@ mod tests {
         for folder in [&minecraft, &game, &chosen_lunar, &other_lunar] {
             fs::create_dir_all(folder).unwrap();
         }
-        let paths = [game.join("options.txt"), chosen_lunar.join("mods.json")];
+        let paths = [
+            minecraft.join("options.txt"),
+            chosen_lunar.join("mods.json"),
+        ];
         let original = [
             b"fov:0.5\r\nguiScale:2\r\nunknownKey:preserved\r\n".to_vec(),
             b"{\"FPS\":{\"enabled\":false,\"x\":0.25},\"unshared\":{\"value\":7}}\r\n".to_vec(),
         ];
-        let other_options = minecraft.join("options.txt");
+        let other_options = game.join("options.txt");
         let other_mods = other_lunar.join("mods.json");
         fs::write(&other_options, &original[0]).unwrap();
         fs::write(&other_mods, &original[1]).unwrap();
@@ -745,7 +762,7 @@ mod tests {
             lunar_root: Some(lunar.to_string_lossy().into()),
         };
         let target = crate::importer::ImportTarget {
-            minecraft_profile: "Lunar 1.21.11".into(),
+            minecraft_profile: "Minecraft".into(),
             lunar_profile: "Zulu Selected".into(),
         };
         let store = BackupStore::new(root.join("backups"));

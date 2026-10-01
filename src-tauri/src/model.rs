@@ -50,6 +50,8 @@ pub struct ScanReport {
     pub lunar_detected: bool,
     pub minecraft_versions: Vec<String>,
     pub lunar_profiles: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_lunar_profile: Option<String>,
     pub warnings: Vec<String>,
     pub platform: String,
     pub running_processes: Vec<String>,

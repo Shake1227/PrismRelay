@@ -33,6 +33,7 @@ export interface ScanReport {
   lunarDetected: boolean;
   minecraftVersions: string[];
   lunarProfiles: string[];
+  activeLunarProfile?: string | null;
   warnings: string[];
   platform: string;
   runningProcesses: string[];
