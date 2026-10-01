@@ -1,0 +1,300 @@
+.crystal-completion {
+  width: 184px;
+  height: 132px;
+  margin: -12px auto -4px;
+  position: relative;
+  pointer-events: none;
+  isolation: isolate;
+}
+.crystal-completion > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.crystal-completion .completion-crystal,
+.crystal-completion .completion-field,
+.crystal-completion .completion-ring,
+.crystal-completion .completion-shard,
+.crystal-completion .completion-particle,
+.crystal-completion .completion-rest {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.crystal-completion .completion-crystal {
+  animation: completion-tremor 4.2s linear forwards;
+}
+.crystal-completion .completion-afterglow {
+  opacity: 0;
+  animation: completion-afterglow 4.2s ease-out forwards;
+}
+.crystal-completion .completion-field {
+  opacity: 0;
+  animation: completion-field 4.2s ease-out forwards;
+}
+.crystal-completion .completion-orbits {
+  opacity: 0;
+  animation: completion-orbits 4.2s ease-out forwards;
+}
+.crystal-completion .completion-ring {
+  opacity: 0;
+  animation: completion-ring 4.2s ease-out forwards;
+}
+.crystal-completion .completion-filament {
+  opacity: 0;
+  stroke-dasharray: 150;
+  stroke-dashoffset: 150;
+  animation: completion-filament 4.2s ease-out forwards;
+}
+.crystal-completion .completion-shard {
+  opacity: 0;
+  animation: completion-shard 4.2s ease-out forwards;
+}
+.crystal-completion .completion-particle {
+  opacity: 0;
+  animation: completion-particle 4.2s ease-out forwards;
+}
+.crystal-completion .completion-rest {
+  opacity: 0;
+  animation: completion-rest 4.2s ease-out forwards;
+}
+
+@keyframes completion-tremor {
+  0%,
+  8% {
+    transform: translate(0, 0) rotate(0);
+    opacity: 1;
+  }
+  15% {
+    transform: translate(-0.3px, 0.1px) rotate(-0.5deg);
+  }
+  19% {
+    transform: translate(0.3px, -0.2px) rotate(0.5deg);
+  }
+  24% {
+    transform: translate(-0.6px, -0.3px) rotate(-0.9deg);
+  }
+  28% {
+    transform: translate(0.7px, 0.3px) rotate(1deg);
+  }
+  33% {
+    transform: translate(-1px, 0.4px) rotate(-1.5deg);
+  }
+  37% {
+    transform: translate(1.1px, -0.5px) rotate(1.6deg);
+  }
+  40% {
+    transform: translate(-1.5px, -0.5px) rotate(-2.1deg);
+  }
+  43% {
+    transform: translate(1.6px, 0.4px) rotate(2.3deg);
+  }
+  46% {
+    transform: translate(-2px, 0.6px) rotate(-2.8deg);
+  }
+  49% {
+    transform: translate(2.3px, -0.8px) rotate(3.2deg);
+  }
+  52% {
+    transform: translate(-2.7px, -0.5px) rotate(-3.8deg);
+  }
+  55% {
+    transform: translate(3px, 0.5px) rotate(4.2deg);
+  }
+  58% {
+    transform: translate(-1.8px, -0.4px) rotate(-2.7deg) scale(1.04);
+  }
+  61% {
+    transform: translate(0, 0) rotate(0) scale(1.12);
+    opacity: 1;
+  }
+  64%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+}
+@keyframes completion-field {
+  0%,
+  18% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  38% {
+    opacity: 0.2;
+    transform: scale(0.75);
+  }
+  55% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+  63% {
+    opacity: 0.95;
+    transform: scale(1.8);
+  }
+  78% {
+    opacity: 0.45;
+    transform: scale(2.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.7);
+  }
+}
+@keyframes completion-orbits {
+  0%,
+  38% {
+    opacity: 0;
+  }
+  52% {
+    opacity: 0.2;
+  }
+  63% {
+    opacity: 0.55;
+  }
+  76%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes completion-ring {
+  0%,
+  56% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  64% {
+    opacity: 0.85;
+    transform: scale(1.15);
+  }
+  82% {
+    opacity: 0.15;
+    transform: scale(2.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.1);
+  }
+}
+@keyframes completion-filament {
+  0%,
+  43% {
+    opacity: 0;
+    stroke-dashoffset: 150;
+  }
+  58% {
+    opacity: 0.35;
+    stroke-dashoffset: 115;
+  }
+  65% {
+    opacity: 0.95;
+    stroke-dashoffset: 38;
+  }
+  77% {
+    opacity: 0.35;
+    stroke-dashoffset: 0;
+  }
+  94%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -70;
+  }
+}
+@keyframes completion-shard {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0) scale(1);
+  }
+  63% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(1.08);
+  }
+  78% {
+    opacity: 0.7;
+    transform: translate(var(--shard-x), var(--shard-y))
+      rotate(var(--shard-rotation)) scale(0.78);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--shard-x) * 1.6), calc(var(--shard-y) * 1.6))
+      rotate(var(--shard-rotation)) scale(0.2);
+  }
+}
+@keyframes completion-particle {
+  0%,
+  58% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+  64% {
+    opacity: 1;
+    transform: translate(
+        calc(var(--particle-x) * 0.18),
+        calc(var(--particle-y) * 0.18)
+      )
+      scale(1.3);
+  }
+  84% {
+    opacity: 0.6;
+    transform: translate(var(--particle-x), var(--particle-y)) scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        calc(var(--particle-x) * 1.25),
+        calc(var(--particle-y) * 1.25)
+      )
+      scale(0.1);
+  }
+}
+@keyframes completion-afterglow {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  87% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 0.16;
+  }
+}
+@keyframes completion-rest {
+  0%,
+  80% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crystal-completion .completion-motion {
+    display: none;
+  }
+  .crystal-completion .completion-crystal {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .crystal-completion .completion-afterglow {
+    animation: none !important;
+    opacity: 0.18;
+  }
+}
+[data-reduce-motion="true"] .crystal-completion .completion-motion {
+  display: none;
+}
+[data-reduce-motion="true"] .crystal-completion .completion-crystal {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
+}
+[data-reduce-motion="true"] .crystal-completion .completion-afterglow {
+  animation: none !important;
+  opacity: 0.18;
+}

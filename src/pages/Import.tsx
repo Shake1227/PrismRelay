@@ -21,6 +21,7 @@ import { demoScan, encodeDemo } from "../services/demo";
 import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
 import { ImportDestinations } from "../components/ImportDestinations";
+import { CrystalCompletion } from "../components/CrystalCompletion";
 import type { ImportDestinationFile } from "../components/ImportDestinations";
 import { QrReader } from "../components/QrReader";
 import { Modal } from "../components/Modal";
@@ -228,9 +229,7 @@ export function Import({
   if (done)
     return (
       <section className="glass-panel code-result">
-        <div className="result-icon">
-          <Check size={26} />
-        </div>
+        <CrystalCompletion />
         <h2>
           {isDesktop
             ? t("設定を適用しました。")
