@@ -24,7 +24,11 @@ export function ProfileSelect({
             size={15}
             decorative
           />
-          Minecraft {target ? t("の適用先") : t("プロフィール")}
+          {target ? (
+            t("Minecraft（ゲーム設定）")
+          ) : (
+            <>Minecraft {t("プロフィール")}</>
+          )}
         </span>
         <select
           value={value.minecraftProfile || ""}
@@ -49,7 +53,7 @@ export function ProfileSelect({
             size={15}
             decorative
           />
-          Lunar {target ? t("の適用先") : t("プロフィール")}
+          {target ? t("Lunar（HUD・MOD設定）") : <>Lunar {t("プロフィール")}</>}
         </span>
         <select
           value={value.lunarProfile || ""}

@@ -1,20 +1,15 @@
-# Prism Relay 1.0.0
+# Prism Relay 1.0.1
 
-MinecraftとLunar Clientの設定を、共有コードで別のPCへ持ち運べるアプリです。共有する項目を選び、適用前に差分を確認できます。
+設定の読み込み先が複数あると、使用中とは別のMinecraft・Lunarプロフィールへ自動的に適用してしまう問題を修正しました。
 
-- 設定フォルダの自動検出、プロファイル選択、検索付きツリー、プリセット
-- 圧縮した共有コード、ファイル保存、QR生成と画像・カメラからの読み取り
-- 部分Import、差分表示、適用前の自動バックアップ、復元
-- 左メニュー下部のボタンで通常表示・アイコン表示を滑らかに切り替え、状態を保存。アニメーション軽減に対応し、設定一覧の表示幅も拡大
-- 日本語・英語・韓国語・中国語・フィンランド語・スペイン語・ドイツ語
-- ダーク・ライト・OS連動テーマ、アニメーションの軽減
-- 端末内のMinecraft・Lunar Clientアイコンを表示
-- Windows用の角丸アプリアイコン
-- 見出し周囲の背景色を統一
-- GitHub APIで最新バージョンを確認
-- 作者: Shake_1227 · X: @shake_1227
+- 保存先が複数ある場合は、適用するプロフィールを選択
+- 差分・確認・完了画面に、対象のプロフィールと設定ファイルを表示
+- 適用に失敗した後は、最新の差分を確認して再試行
+- Mac・Windowsで、異なる共有コードの連続適用とバックアップからの復元を検証
 
-Windowsではx64またはARM64のMSI / setup.exeを選んでインストールしてください。Windows・Mac版の対応するソースは、添付の `prism-relay-v1.0.0-source.tar.gz` です。
+Lunar Clientの操作・画面設定は、**Minecraft（ゲーム設定）**の適用先で使用中のLunarバージョンを選びます。**Lunar（HUD・MOD設定）**はHUDやMODのプロフィールです。
+
+Windowsはx64・ARM64のMSIまたはsetup.exe、MacはApple Silicon・IntelのDMGを選んでインストールしてください。対応するソースは、添付の `prism-relay-v1.0.1-source.tar.gz` です。
 
 ### Macで初めて開くとき
 
@@ -29,10 +24,9 @@ Apple SiliconまたはIntelのDMGを開き、Prism RelayをApplicationsへドラ
 
 許可後は通常どおり起動できます。詳しくは[Appleの案内](https://support.apple.com/ja-jp/102445#openanyway)を参照してください。
 
-Discordには共有コードを貼り付けて送れます。2000文字を超える場合は、`.prism`ファイルの添付が便利です。
 
-対応しているLunar設定は `docs/lunar-schema.md` に記載しています。HUD座標は元の値を引き継ぐため、解像度の違う端末では適用後に位置を確認してください。`optionsof.txt` は検出とバックアップに対応しています。
+各ファイルのSHA-256は `SHA256SUMS.txt`、ビルド元は `BUILD_INFO.json` で確認できます。
 
-各インストーラーのSHA-256は `SHA256SUMS.txt` で確認できます。
+作者: Shake_1227 · [X: @shake_1227](https://x.com/shake_1227)
 
 GPL-3.0-or-later。Lunar Client、Minecraftの非公式ツールです。

@@ -4,6 +4,7 @@ import {
   minecraftProfiles,
   minecraftVersion,
   reconcileProfiles,
+  reconcileImportProfiles,
 } from "./profiles";
 
 const scan: ScanReport = {
@@ -55,6 +56,22 @@ describe("profile selection", () => {
     expect(reconcileProfiles(scan, valid)).toBe(valid);
     expect(reconcileProfiles(scan, { minecraftProfile: "removed" })).toEqual({
       minecraftProfile: "Vanilla",
+      lunarProfile: undefined,
+    });
+  });
+  it("requires an explicit import target when several profiles exist and after a selected profile disappears", () => {
+    expect(reconcileImportProfiles(scan)).toEqual({});
+    const chosen = { minecraftProfile: "Lunar 1.21" };
+    expect(reconcileImportProfiles({ ...scan }, chosen)).toBe(chosen);
+    expect(
+      reconcileImportProfiles(scan, { minecraftProfile: "missing" }),
+    ).toEqual({ minecraftProfile: undefined, lunarProfile: undefined });
+    const single = {
+      ...scan,
+      files: scan.files.filter((file) => file.profile === "Lunar 1.21"),
+    };
+    expect(reconcileImportProfiles(single)).toEqual({
+      minecraftProfile: "Lunar 1.21",
       lunarProfile: undefined,
     });
   });

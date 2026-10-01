@@ -197,6 +197,28 @@ export function previewDemo(args: ImportArguments): ImportPreview {
   const decoded = decodeDemo(args.code);
   return {
     fingerprint: "demo",
+    targetFiles: demoScan.files
+      .filter((file) => {
+        const profile =
+          file.source === "minecraft"
+            ? args.target.minecraftProfile
+            : args.target.lunarProfile;
+        return (
+          file.profile === profile &&
+          decoded.settings.some(
+            (setting) =>
+              args.selectedIds.includes(setting.id) &&
+              setting.source === file.source &&
+              setting.fileKind === file.fileKind,
+          )
+        );
+      })
+      .map(({ source, profile, fileKind, path }) => ({
+        source,
+        profile,
+        fileKind,
+        path,
+      })),
     changes: decoded.settings
       .filter((setting) => args.selectedIds.includes(setting.id))
       .map((setting) => {

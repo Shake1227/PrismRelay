@@ -400,7 +400,11 @@ svg {
   left: calc(-1 * var(--content-padding));
   right: calc(-1 * var(--content-padding));
   background: var(--bg);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 12px),
+    transparent
+  );
   mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
   opacity: 0;
   pointer-events: none;
@@ -1389,6 +1393,42 @@ input[type="checkbox"] {
   margin: 19px 3px;
   color: var(--muted);
   font-size: 9px;
+}
+.import-profile-help {
+  margin: 0 20px 18px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.8;
+}
+.import-destinations {
+  margin: 0 20px 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--accent-bg);
+  text-align: left;
+}
+.import-destinations > strong {
+  font-size: 10px;
+  font-weight: 500;
+}
+.import-destination {
+  margin-top: 10px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.import-destination code {
+  display: block;
+  margin-top: 4px;
+  font-size: 8px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.code-result > .import-destinations {
+  margin-top: 22px;
+}
+.modal > .import-destinations {
+  margin: 20px 0 0;
 }
 .panel-action-row {
   display: flex;

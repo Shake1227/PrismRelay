@@ -43,3 +43,24 @@ export function reconcileProfiles(
     ? current
     : { minecraftProfile, lunarProfile };
 }
+
+export function reconcileImportProfiles(
+  scan: ScanReport,
+  current: TargetProfiles = {},
+): TargetProfiles {
+  const choose = (available: string[], selected?: string) =>
+    selected && available.includes(selected)
+      ? selected
+      : available.length === 1
+        ? available[0]
+        : undefined;
+  const minecraftProfile = choose(
+    minecraftProfiles(scan),
+    current.minecraftProfile,
+  );
+  const lunarProfile = choose(scan.lunarProfiles, current.lunarProfile);
+  return minecraftProfile === current.minecraftProfile &&
+    lunarProfile === current.lunarProfile
+    ? current
+    : { minecraftProfile, lunarProfile };
+}

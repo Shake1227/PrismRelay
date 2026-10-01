@@ -629,6 +629,230 @@ mod tests {
         assert_eq!(files[0].file_name(), "options.txt");
     }
 
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn failed_second_replacement_restores_first_and_preserves_backup() {
+        let fixture = RecoveryFixture::new();
+        let _lock = fixture.store.lock().unwrap();
+        #[cfg(target_os = "macos")]
+        let permissions = fs::metadata(fixture.paths[1].parent().unwrap())
+            .unwrap()
+            .permissions();
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(
+                fixture.paths[1].parent().unwrap(),
+                fs::Permissions::from_mode(0o500),
+            )
+            .unwrap();
+        }
+        #[cfg(windows)]
+        let blocked = {
+            use std::os::windows::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .read(true)
+                .share_mode(3)
+                .open(&fixture.paths[1])
+                .unwrap()
+        };
+        let updates = fixture
+            .paths
+            .iter()
+            .zip(&fixture.original)
+            .zip(&fixture.imported)
+            .map(|((path, before), after)| FileUpdate {
+                path: path.clone(),
+                expected: before.clone(),
+                contents: after.clone(),
+            })
+            .collect();
+        let result = fixture
+            .store
+            .apply(&fixture.report, &fixture.request, "import", updates);
+        #[cfg(target_os = "macos")]
+        fs::set_permissions(fixture.paths[1].parent().unwrap(), permissions).unwrap();
+        #[cfg(windows)]
+        drop(blocked);
+        let error = result.unwrap_err();
+        assert!(error.contains("変更を取り消しました"), "{error}");
+        for (path, original) in fixture.paths.iter().zip(&fixture.original) {
+            assert_eq!(read_config(path).unwrap(), *original);
+        }
+        assert_eq!(fixture.store.pending_backup_id().unwrap(), None);
+        assert!(!fixture.store.root.join("transaction.json").exists());
+        let backups = fixture.store.list().unwrap();
+        assert_eq!(backups.len(), 1);
+        let updates = fixture.store.verify(&backups[0], &fixture.report).unwrap();
+        for (update, original) in updates.iter().zip(&fixture.original) {
+            assert_eq!(update.contents, *original);
+        }
+        for path in &fixture.paths {
+            let parent = path.parent().unwrap();
+            assert!(!fs::read_dir(parent).unwrap().any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".tmp")));
+        }
+    }
+
+    #[test]
+    fn consecutive_windows_codes_update_chosen_game_profiles_and_restore() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
+        let minecraft = root.join("Library/Application Support/minecraft");
+        let lunar = root.join("プレイヤー Settings/.lunarclient");
+        let game = lunar.join("profiles/1.21.11");
+        let chosen_lunar = lunar.join("settings/game/Zulu Selected");
+        let other_lunar = lunar.join("settings/game/Alpha Other");
+        for folder in [&minecraft, &game, &chosen_lunar, &other_lunar] {
+            fs::create_dir_all(folder).unwrap();
+        }
+        let paths = [game.join("options.txt"), chosen_lunar.join("mods.json")];
+        let original = [
+            b"fov:0.5\r\nguiScale:2\r\nunknownKey:preserved\r\n".to_vec(),
+            b"{\"FPS\":{\"enabled\":false,\"x\":0.25},\"unshared\":{\"value\":7}}\r\n".to_vec(),
+        ];
+        let other_options = minecraft.join("options.txt");
+        let other_mods = other_lunar.join("mods.json");
+        fs::write(&other_options, &original[0]).unwrap();
+        fs::write(&other_mods, &original[1]).unwrap();
+        for (path, bytes) in paths.iter().zip(&original) {
+            fs::write(path, bytes).unwrap();
+        }
+        let request = ScanRequest {
+            minecraft_root: Some(minecraft.to_string_lossy().into()),
+            lunar_root: Some(lunar.to_string_lossy().into()),
+        };
+        let target = crate::importer::ImportTarget {
+            minecraft_profile: "Lunar 1.21.11".into(),
+            lunar_profile: "Zulu Selected".into(),
+        };
+        let store = BackupStore::new(root.join("backups"));
+        let mut backups = Vec::new();
+        let mut imported = Vec::new();
+        for (fov, scale, enabled, x) in [("0.75", "3", true, 0.5), ("0.9", "4", false, 0.75)] {
+            let mut settings = crate::minecraft::parse_settings(
+                &format!("fov:{fov}\r\nguiScale:{scale}\r\n"),
+                "options",
+                "Windows game profile",
+            )
+            .unwrap();
+            settings.extend(
+                crate::lunar::parse_settings(
+                    &format!(r#"{{"FPS":{{"enabled":{enabled},"x":{x}}}}}"#),
+                    "mods",
+                    "Windows Lunar profile",
+                )
+                .unwrap(),
+            );
+            let code = crate::codec::encode(
+                settings,
+                crate::codec::ShareMetadata {
+                    minecraft_version: Some("1.21.11".into()),
+                    lunar_version: None,
+                    platform: "Windows".into(),
+                },
+            )
+            .unwrap()
+            .code;
+            let envelope = crate::codec::decode(&code).unwrap();
+            assert_eq!(envelope.metadata.platform, "windows");
+            let ids = envelope
+                .settings
+                .iter()
+                .map(|setting| setting.id.clone())
+                .collect::<Vec<_>>();
+            let preview = crate::importer::preview(&code, &ids, &target, &request).unwrap();
+            assert_eq!(preview.selected_count, 4);
+            assert!(preview.changes.iter().all(|change| change.changed));
+            let _lock = store.lock().unwrap();
+            let backup = crate::importer::apply(
+                &store,
+                &code,
+                &ids,
+                &target,
+                &request,
+                true,
+                &preview.fingerprint,
+            )
+            .unwrap();
+            assert_eq!(backup.files.len(), 2);
+            let options = String::from_utf8(read_config(&paths[0]).unwrap()).unwrap();
+            assert_eq!(
+                options,
+                format!("fov:{fov}\r\nguiScale:{scale}\r\nunknownKey:preserved\r\n")
+            );
+            let mods = crate::lunar::parse_document(
+                &String::from_utf8(read_config(&paths[1]).unwrap()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                mods.pointer("/FPS/enabled"),
+                Some(&serde_json::json!(enabled))
+            );
+            assert_eq!(mods.pointer("/FPS/x"), Some(&serde_json::json!(x)));
+            assert_eq!(mods.pointer("/unshared/value"), Some(&serde_json::json!(7)));
+            assert_eq!(read_config(&other_options).unwrap(), original[0]);
+            assert_eq!(read_config(&other_mods).unwrap(), original[1]);
+            let repeated = crate::importer::preview(&code, &ids, &target, &request).unwrap();
+            assert_eq!(repeated.selected_count, 4);
+            assert!(repeated.changes.iter().all(|change| !change.changed));
+            assert_eq!(store.list().unwrap().len(), backups.len() + 1);
+            assert_eq!(store.pending_backup_id().unwrap(), None);
+            imported.push(
+                paths
+                    .iter()
+                    .map(|path| read_config(path).unwrap())
+                    .collect::<Vec<_>>(),
+            );
+            backups.push(backup);
+        }
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        let first_expected = original.to_vec();
+        for (backup, expected) in [(&backups[1], &imported[0]), (&backups[0], &first_expected)] {
+            let _lock = store.lock().unwrap();
+            let updates = store.verify(backup, &report).unwrap();
+            store.apply(&report, &request, "restore", updates).unwrap();
+            for (path, bytes) in paths.iter().zip(expected) {
+                assert_eq!(read_config(path).unwrap(), *bytes);
+            }
+            assert_eq!(read_config(&other_options).unwrap(), original[0]);
+            assert_eq!(read_config(&other_mods).unwrap(), original[1]);
+            assert_eq!(store.pending_backup_id().unwrap(), None);
+        }
+        assert_eq!(store.list().unwrap().len(), 4);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_locked_replacement_keeps_original_and_can_be_retried_twice() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
+        let path = root.join("options.txt");
+        let mut current = b"fov:0.5\r\nunknown:preserved\r\n".to_vec();
+        fs::write(&path, &current).unwrap();
+        for contents in [
+            b"fov:0.75\r\nunknown:preserved\r\n".as_slice(),
+            b"fov:1.0\r\nunknown:preserved\r\n".as_slice(),
+        ] {
+            let held = OpenOptions::new()
+                .read(true)
+                .share_mode(3)
+                .open(&path)
+                .unwrap();
+            assert!(atomic_write(&path, contents).is_err());
+            assert_eq!(read_config(&path).unwrap(), current);
+            drop(held);
+            atomic_write(&path, contents).unwrap();
+            assert_eq!(read_config(&path).unwrap(), contents);
+            assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+            current = contents.to_vec();
+        }
+    }
+
     #[test]
     fn backup_paths_remain_canonical_across_saved_manifests_and_restore() {
         let fixture = RecoveryFixture::new();

@@ -33,6 +33,16 @@ pub struct ImportPreview {
     pub warnings: Vec<String>,
     pub selected_count: usize,
     pub fingerprint: String,
+    pub target_files: Vec<ImportFile>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFile {
+    pub source: String,
+    pub profile: String,
+    pub file_kind: String,
+    pub path: String,
 }
 
 struct PlannedFile {
@@ -276,6 +286,21 @@ fn plan(
         changes,
         warnings,
         fingerprint: format!("{:x}", hasher.finalize()),
+        target_files: files
+            .keys()
+            .filter_map(|path| {
+                report
+                    .files
+                    .iter()
+                    .find(|file| std::path::Path::new(&file.path) == path)
+            })
+            .map(|file| ImportFile {
+                source: file.source.clone(),
+                profile: file.profile.clone(),
+                file_kind: file.file_kind.clone(),
+                path: file.path.clone(),
+            })
+            .collect(),
     };
     Ok(ImportPlan {
         preview,
@@ -360,6 +385,25 @@ mod tests {
             .collect();
         let before = preview(&code, &selected, &target, &request).unwrap();
         assert_eq!(before.selected_count, 2);
+        assert_eq!(before.target_files.len(), 2);
+        assert!(before.target_files.iter().any(|file| {
+            file.source == "minecraft"
+                && file.profile == "Vanilla"
+                && file.file_kind == "options"
+                && std::path::Path::new(&file.path)
+                    == PathBuf::from(request.minecraft_root.as_ref().unwrap()).join("options.txt")
+        }));
+        assert!(before.target_files.iter().any(|file| {
+            file.source == "lunar"
+                && file.profile == "Destination"
+                && file.file_kind == "mods"
+                && std::path::Path::new(&file.path)
+                    == PathBuf::from(request.lunar_root.as_ref().unwrap())
+                        .join("settings/game/Destination/mods.json")
+        }));
+        let serialized = serde_json::to_value(&before).unwrap();
+        assert!(serialized.get("targetFiles").is_some());
+        assert!(serialized["targetFiles"][0].get("fileKind").is_some());
         let _lock = store.lock().unwrap();
         let backup = apply(
             &store,

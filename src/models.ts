@@ -67,6 +67,12 @@ export interface ImportArguments {
 }
 export interface ImportPreview {
   fingerprint: string;
+  targetFiles: {
+    source: Source;
+    profile: string;
+    fileKind: string;
+    path: string;
+  }[];
   changes: {
     id: string;
     label: string;

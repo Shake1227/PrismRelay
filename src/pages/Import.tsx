@@ -20,10 +20,12 @@ import { backend, isDesktop } from "../services/backend";
 import { demoScan, encodeDemo } from "../services/demo";
 import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
+import { ImportDestinations } from "../components/ImportDestinations";
+import type { ImportDestinationFile } from "../components/ImportDestinations";
 import { QrReader } from "../components/QrReader";
 import { Modal } from "../components/Modal";
 import { formatDate, formatValue } from "../utils/format";
-import { minecraftProfiles, reconcileProfiles } from "../utils/profiles";
+import { reconcileImportProfiles } from "../utils/profiles";
 import { createRequestGuard } from "../utils/requestGuard";
 import type { WorkspaceProps } from "./types";
 export function Import({
@@ -37,10 +39,9 @@ export function Import({
   const [code, setCode] = useState("");
   const [decoded, setDecoded] = useState<DecodedShare | null>(null);
   const [selected, setSelected] = useState(new Set<string>());
-  const [profiles, setProfiles] = useState<TargetProfiles>({
-    minecraftProfile: minecraftProfiles(scan)[0],
-    lunarProfile: scan.lunarProfiles[0],
-  });
+  const [profiles, setProfiles] = useState<TargetProfiles>(() =>
+    reconcileImportProfiles(scan),
+  );
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [changedOnly, setChangedOnly] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -48,6 +49,9 @@ export function Import({
   const [readingQr, setReadingQr] = useState(false);
   const [done, setDone] = useState(false);
   const [appliedCount, setAppliedCount] = useState(0);
+  const [appliedTargets, setAppliedTargets] = useState<ImportDestinationFile[]>(
+    [],
+  );
   const previewGuard = useRef(createRequestGuard());
   const fileInput = useRef<HTMLInputElement>(null);
   const previewPanel = useRef<HTMLElement>(null);
@@ -79,6 +83,7 @@ export function Import({
     previewGuard.current.invalidate();
     setDecoded(null);
     setPreview(null);
+    setConfirm(false);
     setDone(false);
     setBusy(false);
     if (!code.trim()) return;
@@ -109,7 +114,7 @@ export function Import({
     previewGuard.current.invalidate();
     setPreview(null);
     setConfirm(false);
-    setProfiles((current) => reconcileProfiles(scan, current));
+    setProfiles((current) => reconcileImportProfiles(scan, current));
   }, [scan, request]);
   const args: ImportArguments = {
     code: code.trim(),
@@ -140,10 +145,30 @@ export function Import({
     if (!preview) return;
     setBusy(true);
     try {
-      await backend.apply(args, preview?.fingerprint || "", allowRunning);
+      const backup = await backend.apply(
+        args,
+        preview.fingerprint,
+        allowRunning,
+      );
       setAppliedCount(
         preview.changes.filter((change) => change.changed).length,
       );
+      setAppliedTargets(
+        isDesktop
+          ? backup.files.map((file) => ({
+              ...preview.targetFiles.find(
+                (target) => target.path === file.originalPath,
+              ),
+              path: file.originalPath,
+            }))
+          : preview.targetFiles.filter((file) =>
+              preview.changes.some(
+                (change) => change.changed && change.source === file.source,
+              ),
+            ),
+      );
+      previewGuard.current.invalidate();
+      setPreview(null);
       setDone(true);
       setConfirm(false);
       onNotice(
@@ -153,6 +178,8 @@ export function Import({
       );
       await onRefresh();
     } catch (error) {
+      previewGuard.current.invalidate();
+      setPreview(null);
       onError(error);
       setConfirm(false);
     } finally {
@@ -219,6 +246,7 @@ export function Import({
               )
             : t("サンプルモードではファイルは変更されません。")}
         </p>
+        <ImportDestinations files={appliedTargets} />
         <div className="help-card">
           <ShieldCheck size={20} />
           <div>
@@ -232,6 +260,7 @@ export function Import({
         </div>
         <button
           className="button primary"
+          disabled={busy}
           onClick={() => {
             setCode("");
             setDone(false);
@@ -342,6 +371,11 @@ export function Import({
                 setPreview(null);
               }}
             />
+            <p className="import-profile-help">
+              {t(
+                "Lunar Clientの操作・画面設定は、Minecraftの適用先で使用中のLunarバージョンを選んでください。HUD・MOD設定はLunarのプロフィールを選びます。",
+              )}
+            </p>
             <TreePicker
               settings={decoded.settings}
               applicationIcons={scan.applicationIcons}
@@ -389,6 +423,7 @@ export function Import({
                   {t("変更のみ")}
                 </label>
               </div>
+              <ImportDestinations files={preview.targetFiles} />
               {preview.warnings.map((warning, index) => (
                 <div className="inline-warning" key={index}>
                   {t(warning)}
@@ -472,7 +507,9 @@ export function Import({
               ? t("ゲームが起動しています")
               : t("設定を適用しますか？")
           }
-          onClose={() => setConfirm(false)}
+          onClose={() => {
+            if (!busy) setConfirm(false);
+          }}
         >
           <div className="confirm-icon">
             <ShieldCheck size={27} />
@@ -494,6 +531,7 @@ export function Import({
                   },
                 )}
           </p>
+          <ImportDestinations files={preview?.targetFiles || []} />
           {!isDesktop && (
             <p className="inline-warning">
               {t("サンプルの確認です。実際の設定ファイルは変更しません。")}
@@ -502,6 +540,7 @@ export function Import({
           <div className="modal-actions">
             <button
               className="button secondary"
+              disabled={busy}
               onClick={() => setConfirm(false)}
             >
               {t("キャンセル")}
