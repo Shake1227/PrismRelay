@@ -21,7 +21,7 @@ export function ErrorBanner({
         </p>
         <details>
           <summary>{t("詳細を表示")}</summary>
-          <pre>{error}</pre>
+          <pre>{t(error)}</pre>
         </details>
       </div>
       <button

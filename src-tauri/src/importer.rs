@@ -50,6 +50,7 @@ struct PlannedFile {
     source: String,
     expected: Vec<u8>,
     current_settings: BTreeMap<String, Setting>,
+    present_keys: BTreeSet<String>,
     settings: Vec<Setting>,
 }
 
@@ -103,7 +104,7 @@ pub fn apply(
         let original = std::str::from_utf8(&file.expected)
             .map_err(|_| "A settings file has an unsupported encoding.".to_string())?;
         let contents = if file.source == "minecraft" {
-            crate::minecraft::merge_options(original, &file.settings)?
+            crate::minecraft::merge_file(original, &file.settings, &file.path)?
         } else {
             crate::lunar::merge_settings(original, &file.settings)?
         };
@@ -154,9 +155,10 @@ fn plan(
     let mut changes = Vec::new();
     let mut mapped = BTreeSet::new();
     let mut files = BTreeMap::<PathBuf, PlannedFile>::new();
+    let mut target_paths = BTreeSet::new();
     let mut unsupported = 0;
     let mut hud_coordinates = false;
-    for incoming in envelope
+    'settings: for incoming in envelope
         .settings
         .iter()
         .filter(|setting| selected.contains(setting.id.as_str()))
@@ -190,57 +192,117 @@ fn plan(
             .iter()
             .filter(|file| {
                 file.source == current.source
-                    && file.file_kind == current.file_kind
                     && file.profile == current.profile
+                    && (file.file_kind == current.file_kind
+                        || (current.source == "minecraft"
+                            && current.file_kind == "options"
+                            && file.file_kind == "options_legacy"))
             })
             .collect();
-        if source_files.len() != 1 {
+        let paired_options = source_files.len() == 2
+            && current.source == "minecraft"
+            && source_files.iter().any(|file| {
+                file.file_kind == "options"
+                    && std::path::Path::new(&file.path).file_name()
+                        == Some(std::ffi::OsStr::new("optionsLC.txt"))
+            })
+            && source_files.iter().any(|file| {
+                file.file_kind == "options_legacy"
+                    && std::path::Path::new(&file.path).file_name()
+                        == Some(std::ffi::OsStr::new("options.txt"))
+            })
+            && std::path::Path::new(&source_files[0].path).parent()
+                == std::path::Path::new(&source_files[1].path).parent();
+        if source_files.len() != 1 && !paired_options {
             return Err(
                 "The selected profile is ambiguous. Choose a more specific settings folder.".into(),
             );
         }
-        let path = PathBuf::from(&source_files[0].path);
-        if !files.contains_key(&path) {
-            let expected = backup::read_config(&path)?;
-            let content = std::str::from_utf8(&expected)
-                .map_err(|_| "A settings file has an unsupported encoding.".to_string())?;
-            let captured = if current.source == "minecraft" {
-                crate::minecraft::parse_settings(content, &current.file_kind, &current.profile)?
-            } else {
-                crate::lunar::parse_settings(content, &current.file_kind, &current.profile)?
-            };
-            let current_settings = captured
-                .into_iter()
-                .map(|setting| (setting.pointer.clone(), setting))
-                .collect();
-            files.insert(
-                path.clone(),
-                PlannedFile {
-                    path: path.clone(),
-                    source: current.source.clone(),
-                    expected,
-                    current_settings,
-                    settings: Vec::new(),
-                },
-            );
+        let mut destinations = Vec::new();
+        for source_file in source_files {
+            let path = PathBuf::from(&source_file.path);
+            if !files.contains_key(&path) {
+                let expected = backup::read_config(&path)?;
+                let content = std::str::from_utf8(&expected)
+                    .map_err(|_| "A settings file has an unsupported encoding.".to_string())?;
+                let captured = if current.source == "minecraft" {
+                    crate::minecraft::parse_file(
+                        content,
+                        &current.file_kind,
+                        &current.profile,
+                        &path,
+                    )?
+                } else {
+                    crate::lunar::parse_settings(content, &current.file_kind, &current.profile)?
+                };
+                let current_settings: BTreeMap<_, _> = captured
+                    .into_iter()
+                    .map(|setting| (setting.pointer.clone(), setting))
+                    .collect();
+                let present_keys =
+                    if path.file_name() == Some(std::ffi::OsStr::new("optionsLC.txt")) {
+                        crate::lunar::parse_document(content)?
+                            .as_object()
+                            .unwrap()
+                            .keys()
+                            .cloned()
+                            .collect()
+                    } else {
+                        current_settings.keys().cloned().collect()
+                    };
+                files.insert(
+                    path.clone(),
+                    PlannedFile {
+                        path: path.clone(),
+                        source: current.source.clone(),
+                        expected,
+                        current_settings,
+                        present_keys,
+                        settings: Vec::new(),
+                    },
+                );
+            }
+            let file = files.get(&path).unwrap();
+            if path.file_name() == Some(std::ffi::OsStr::new("optionsLC.txt"))
+                && file.present_keys.contains(&incoming.pointer)
+                && (!file.current_settings.contains_key(&incoming.pointer)
+                    || crate::minecraft::validate_file_setting(incoming, &path).is_err())
+            {
+                unsupported += 1;
+                continue 'settings;
+            }
+            if let Some(captured) = file.current_settings.get(&incoming.pointer) {
+                if !crate::lunar::same_value_type(&captured.value, &incoming.value) {
+                    unsupported += 1;
+                    continue 'settings;
+                }
+                destinations.push((path, captured.clone()));
+            }
         }
-        let current = files
-            .get(&path)
-            .and_then(|file| file.current_settings.get(&incoming.pointer))
-            .cloned();
-        let Some(current) = current else {
+        if destinations.is_empty() {
             unsupported += 1;
             continue;
-        };
-        if !crate::lunar::same_value_type(&current.value, &incoming.value) {
-            unsupported += 1;
-            continue;
         }
-        let changed = current.value != incoming.value;
-        if changed {
-            let mut setting = current.clone();
-            setting.value = incoming.value.clone();
-            files.get_mut(&path).unwrap().settings.push(setting);
+        let changed = destinations
+            .iter()
+            .any(|(_, setting)| setting.value != incoming.value);
+        let current = destinations
+            .iter()
+            .find(|(_, setting)| setting.value != incoming.value)
+            .or_else(|| {
+                destinations.iter().find(|(path, _)| {
+                    path.file_name() == Some(std::ffi::OsStr::new("optionsLC.txt"))
+                })
+            })
+            .unwrap_or(&destinations[0])
+            .1
+            .clone();
+        for (path, mut setting) in destinations {
+            target_paths.insert(path.clone());
+            if setting.value != incoming.value {
+                setting.value = incoming.value.clone();
+                files.get_mut(&path).unwrap().settings.push(setting);
+            }
         }
         if incoming.source == "lunar"
             && (incoming.pointer.ends_with("/x") || incoming.pointer.ends_with("/y"))
@@ -286,8 +348,8 @@ fn plan(
         changes,
         warnings,
         fingerprint: format!("{:x}", hasher.finalize()),
-        target_files: files
-            .keys()
+        target_files: target_paths
+            .iter()
             .filter_map(|path| {
                 report
                     .files
@@ -346,12 +408,16 @@ mod tests {
     }
 
     fn code(settings: Vec<Setting>) -> (String, Vec<String>) {
+        code_for_platform(settings, "Windows")
+    }
+
+    fn code_for_platform(settings: Vec<Setting>, platform: &str) -> (String, Vec<String>) {
         let code = encode(
             settings,
             ShareMetadata {
                 minecraft_version: Some("1.21".into()),
                 lunar_version: None,
-                platform: "Windows".into(),
+                platform: platform.into(),
             },
         )
         .unwrap()
@@ -489,5 +555,203 @@ mod tests {
             .iter()
             .any(|warning| warning.contains("will be skipped")));
         assert!(preview(&code, &["unknown".into()], &target, &request).is_err());
+    }
+
+    #[test]
+    fn lunar_game_options_sync_both_formats_for_consecutive_codes_and_restore() {
+        let (directory, request, mut target, store) = fixture();
+        let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
+        fs::create_dir_all(&game).unwrap();
+        let text_path = game.join("options.txt");
+        let lunar_path = game.join("optionsLC.txt");
+        let text_original = "\u{feff}fov:0.25\r\nguiScale:2\r\nfullscreen:false\r\nkey_key.jump:key.keyboard.space\r\ngraphicsMode:2\r\nunknown:keep:value\r\n";
+        let lunar_original = "\u{feff}{ \"fov\":\"80\", \"guiScale\":\"2\", \"fullscreen\":\"false\", \"key_key.jump\":\"key.keyboard.space\", \"unknown\":0.9000000000000000001 }\r\n";
+        fs::write(&text_path, text_original).unwrap();
+        fs::write(&lunar_path, lunar_original).unwrap();
+        target.minecraft_profile = "Lunar 1.21".into();
+        let windows = code(crate::minecraft::parse_settings(
+            "fov:0.75\r\nguiScale:3\r\nfullscreen:true\r\nkey_key.jump:key.keyboard.r\r\ngraphicsMode:0\r\n",
+            "options",
+            "Windows game",
+        ).unwrap());
+        let mac = code_for_platform(crate::minecraft::parse_lunar_options(
+            r#"{"fov":"90","guiScale":"4","fullscreen":"false","key_key.jump":"key.keyboard.t"}"#,
+            "Mac game",
+        ).unwrap(), "macOS");
+        let mut backups = Vec::new();
+        let mut previous = Vec::new();
+        for ((code, ids), degree, ratio, scale) in
+            [(&windows, "100", "0.75", "3"), (&mac, "90", "0.5", "4")]
+        {
+            let before = preview(code, ids, &target, &request).unwrap();
+            assert_eq!(before.selected_count, ids.len());
+            assert!(before.changes.iter().all(|change| change.changed));
+            assert_eq!(before.target_files.len(), 2);
+            assert!(before
+                .target_files
+                .iter()
+                .all(|file| file.profile == "Lunar 1.21"));
+            previous.push([
+                fs::read(&text_path).unwrap(),
+                fs::read(&lunar_path).unwrap(),
+            ]);
+            let _lock = store.lock().unwrap();
+            let backup = apply(
+                &store,
+                code,
+                ids,
+                &target,
+                &request,
+                true,
+                &before.fingerprint,
+            )
+            .unwrap();
+            assert_eq!(backup.files.len(), 2);
+            let text = fs::read_to_string(&text_path).unwrap();
+            assert!(text.contains(&format!("fov:{ratio}\r\n")));
+            assert!(text.contains(&format!("guiScale:{scale}\r\n")));
+            assert!(text.contains("graphicsMode:0\r\nunknown:keep:value\r\n"));
+            let lunar = fs::read_to_string(&lunar_path).unwrap();
+            assert!(lunar.starts_with('\u{feff}'));
+            assert!(lunar.ends_with(" }\r\n"));
+            assert!(lunar.contains("\"unknown\":0.9000000000000000001"));
+            let document = crate::lunar::parse_document(&lunar).unwrap();
+            assert_eq!(document["fov"], degree);
+            assert_eq!(document["guiScale"], scale);
+            assert!(document.get("graphicsMode").is_none());
+            let repeated = preview(code, ids, &target, &request).unwrap();
+            assert!(repeated.changes.iter().all(|change| !change.changed));
+            assert_eq!(store.pending_backup_id().unwrap(), None);
+            backups.push(backup);
+        }
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        for (backup, expected) in backups.iter().zip(&previous).rev() {
+            let _lock = store.lock().unwrap();
+            let updates = store.verify(backup, &report).unwrap();
+            store.apply(&report, &request, "restore", updates).unwrap();
+            assert_eq!(fs::read(&text_path).unwrap(), expected[0]);
+            assert_eq!(fs::read(&lunar_path).unwrap(), expected[1]);
+            assert_eq!(store.pending_backup_id().unwrap(), None);
+        }
+        assert_eq!(fs::read_to_string(&text_path).unwrap(), text_original);
+        assert_eq!(fs::read_to_string(&lunar_path).unwrap(), lunar_original);
+        let vanilla = directory.path().join("minecraft/options.txt");
+        assert_eq!(
+            fs::read_to_string(vanilla).unwrap(),
+            "fov:0.5\nguiScale:2\nfutureKey:preserved:value\n"
+        );
+    }
+
+    #[test]
+    fn changed_lunar_mirror_is_previewed_and_both_files_are_guarded() {
+        let (_directory, request, mut target, store) = fixture();
+        let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
+        fs::create_dir_all(&game).unwrap();
+        let text = game.join("options.txt");
+        let lunar = game.join("optionsLC.txt");
+        fs::write(&text, "fov:0.25\n").unwrap();
+        fs::write(&lunar, r#"{"fov":"100"}"#).unwrap();
+        target.minecraft_profile = "Lunar 1.21".into();
+        let (code, ids) =
+            code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
+        let before = preview(&code, &ids, &target, &request).unwrap();
+        assert!(before.changes[0].changed);
+        assert_eq!(before.changes[0].current, "0.25");
+        assert_eq!(before.target_files.len(), 2);
+        fs::write(&lunar, r#"{"fov":"90"}"#).unwrap();
+        let _lock = store.lock().unwrap();
+        assert!(apply(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint
+        )
+        .is_err());
+        assert!(store.list().unwrap().is_empty());
+        let fresh = preview(&code, &ids, &target, &request).unwrap();
+        let backup = apply(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &fresh.fingerprint,
+        )
+        .unwrap();
+        assert_eq!(backup.files.len(), 2);
+        assert_eq!(fs::read_to_string(&text).unwrap(), "fov:0.75\n");
+        assert_eq!(fs::read_to_string(&lunar).unwrap(), r#"{"fov":"100"}"#);
+    }
+
+    #[test]
+    fn lunar_alias_in_a_vanilla_folder_keeps_vanilla_settings_independent() {
+        let (_directory, request, mut target, store) = fixture();
+        let minecraft = PathBuf::from(request.minecraft_root.as_ref().unwrap());
+        let text_path = minecraft.join("options.txt");
+        let text = fs::read(&text_path).unwrap();
+        let lunar = minecraft.join("optionsLC.txt");
+        fs::write(&lunar, r#"{"fov":"80"}"#).unwrap();
+        target.minecraft_profile = "Lunar Vanilla".into();
+        let (code, ids) =
+            code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
+        let before = preview(&code, &ids, &target, &request).unwrap();
+        assert_eq!(before.target_files.len(), 1);
+        assert_eq!(std::path::Path::new(&before.target_files[0].path), lunar);
+        let _lock = store.lock().unwrap();
+        let backup = apply(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        assert_eq!(backup.files.len(), 1);
+        assert_eq!(fs::read_to_string(lunar).unwrap(), r#"{"fov":"100"}"#);
+        assert_eq!(fs::read(text_path).unwrap(), text);
+    }
+
+    #[test]
+    fn lunar_limits_and_unsupported_existing_types_are_skipped_without_partial_mirrors() {
+        let (_directory, request, mut target, store) = fixture();
+        let game = PathBuf::from(request.lunar_root.as_ref().unwrap()).join("profiles/1.21");
+        fs::create_dir_all(&game).unwrap();
+        let text = game.join("options.txt");
+        let lunar = game.join("optionsLC.txt");
+        fs::write(&text, "fov:0.5\nguiScale:2\n").unwrap();
+        fs::write(&lunar, r#"{"fov":"90","guiScale":"2"}"#).unwrap();
+        target.minecraft_profile = "Lunar 1.21".into();
+        let (first_code, first_ids) = code(
+            crate::minecraft::parse_settings("fov:1.5\nguiScale:3", "options", "Other").unwrap(),
+        );
+        let before = preview(&first_code, &first_ids, &target, &request).unwrap();
+        assert_eq!(before.selected_count, 1);
+        assert_eq!(before.changes[0].label, "Gui Scale");
+        let _lock = store.lock().unwrap();
+        apply(
+            &store,
+            &first_code,
+            &first_ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        assert_eq!(fs::read_to_string(&text).unwrap(), "fov:0.5\nguiScale:3\n");
+        assert_eq!(
+            fs::read_to_string(&lunar).unwrap(),
+            r#"{"fov":"90","guiScale":"3"}"#
+        );
+        fs::write(&lunar, r#"{"fov":90,"guiScale":"3"}"#).unwrap();
+        let (code, ids) =
+            code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
+        assert!(preview(&code, &ids, &target, &request).is_err());
     }
 }

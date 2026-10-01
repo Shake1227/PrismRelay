@@ -142,34 +142,49 @@ fn collect(
 }
 
 pub fn merge_settings(content: &str, settings: &[Setting]) -> Result<String, String> {
-    let document = parse_document(content)?;
     let mut seen = BTreeSet::new();
+    let mut changes = BTreeMap::new();
     for setting in settings {
         crate::safety::validate_setting(setting)?;
         if setting.source != "lunar" || !seen.insert(setting.pointer.as_str()) {
             return Err("The selected Lunar settings are unsupported or duplicated.".into());
         }
+        changes.insert(setting.pointer.clone(), setting.value.clone());
+    }
+    replace_scalar_values(content, &changes)
+}
+
+pub(crate) fn replace_scalar_values(
+    content: &str,
+    changes: &BTreeMap<String, Value>,
+) -> Result<String, String> {
+    let document = parse_document(content)?;
+    if changes.len() > 10000 {
+        return Err("The selected Lunar settings exceed the supported limit.".into());
+    }
+    for (pointer, value) in changes {
         let existing = document
-            .pointer(&setting.pointer)
+            .pointer(pointer)
             .ok_or("A selected setting is unavailable in this Lunar profile.")?;
-        if !same_value_type(existing, &setting.value) {
+        if !same_value_type(existing, value) {
             return Err("A selected setting uses a different Lunar schema version.".into());
         }
     }
+    let selected = changes.keys().map(String::as_str).collect();
     let mut tokens = ScalarTokens {
         text: content,
         offset: usize::from(content.starts_with('\u{feff}')) * 3,
-        selected: &seen,
+        selected: &selected,
         spans: BTreeMap::new(),
     };
     tokens.value("", 0)?;
     let mut replacements = Vec::new();
-    for setting in settings {
+    for (pointer, value) in changes {
         let span = tokens
             .spans
-            .remove(&setting.pointer)
+            .remove(pointer)
             .ok_or("The Lunar setting location could not be verified.")?;
-        let value = serde_json::to_string(&setting.value)
+        let value = serde_json::to_string(value)
             .map_err(|_| "The Lunar settings could not be prepared.".to_string())?;
         replacements.push((span, value));
     }

@@ -470,6 +470,8 @@ pub fn validate_content(path: &Path, bytes: &[u8]) -> Result<(), String> {
         if content.contains('\0') {
             return Err("設定ファイルが破損しています。".into());
         }
+    } else if name == "optionsLC.txt" {
+        crate::minecraft::parse_lunar_options(content, "validation")?;
     } else if matches!(
         name,
         "mods.json" | "general.json" | "controls.json" | "performance.json"
@@ -489,6 +491,23 @@ pub fn validate_content(path: &Path, bytes: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::model::ScanFile;
+
+    #[test]
+    fn lunar_game_backups_accept_only_strict_json_objects() {
+        let path = Path::new("optionsLC.txt");
+        for content in ["{}", r#"{"fov":"80","unknown":[1,2]}"#] {
+            assert!(validate_content(path, content.as_bytes()).is_ok());
+        }
+        for content in [
+            "[]",
+            "fov:0.25\n",
+            r#"{"fov":"70","fov":"80"}"#,
+            r#"{"unknown":{"x":1,"x":2}}"#,
+            "{\"fov\":\"70\"}\0",
+        ] {
+            assert!(validate_content(path, content.as_bytes()).is_err());
+        }
+    }
 
     struct RecoveryFixture {
         _directory: tempfile::TempDir,

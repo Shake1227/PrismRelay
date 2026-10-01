@@ -1,5 +1,5 @@
 use crate::model::{file_id, ScanFile, ScanReport, ScanRequest};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -80,7 +80,7 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
         } else {
             format!("Vanilla {}", index + 1)
         };
-        inspect_minecraft(root, &profile, &mut report, &mut seen);
+        inspect_minecraft(root, &profile, false, &mut report, &mut seen);
         for directory in child_directories(&root.join("versions"), &mut report.warnings) {
             if let Some(version) = directory
                 .file_name()
@@ -104,12 +104,14 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
             inspect_minecraft(
                 &directory,
                 &format!("Vanilla {label}"),
+                false,
                 &mut report,
                 &mut seen,
             );
         }
     }
     for root in lunar_roots {
+        inspect_minecraft(&root, "Lunar Default", true, &mut report, &mut seen);
         let game = if root.join("settings").join("game").is_dir() {
             root.join("settings").join("game")
         } else {
@@ -149,7 +151,7 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
                 "Lunar {}",
                 relative.to_string_lossy().replace(['/', '\\'], " · ")
             );
-            inspect_minecraft(&directory, &profile, &mut report, &mut seen);
+            inspect_minecraft(&directory, &profile, true, &mut report, &mut seen);
             if is_version_name(name) {
                 versions.insert(name.split('-').next().unwrap_or(name).into());
             }
@@ -287,53 +289,155 @@ fn read_allowed_file(path: &Path) -> Result<(PathBuf, String), String> {
 fn inspect_minecraft(
     directory: &Path,
     profile: &str,
+    lunar_profile: bool,
     report: &mut ScanReport,
     seen: &mut BTreeSet<PathBuf>,
 ) {
     if !safe_directory(directory) {
         return;
     }
-    for (name, kind) in [("options.txt", "options"), ("optionsof.txt", "optionsof")] {
-        let path = directory.join(name);
-        if !path.exists() || seen.contains(&path) {
-            continue;
+    let lunar_options = match fs::symlink_metadata(directory.join("optionsLC.txt")) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => {
+            report.warnings.push("Lunar game settings could not be accessed. Check the settings folder and try scanning again.".into());
+            true
         }
-        if report.files.len() >= MAX_FILES {
-            report
-                .warnings
-                .push("The scan file limit was reached. Choose a specific settings folder.".into());
-            return;
-        }
-        match read_allowed_file(&path) {
-            Ok((path, content)) => {
-                seen.insert(path.clone());
-                report.minecraft_detected = true;
-                report.files.push(ScanFile {
-                    id: file_id("minecraft", profile, kind),
-                    source: "minecraft".into(),
-                    path: path.to_string_lossy().into(),
-                    file_kind: kind.into(),
-                    profile: profile.into(),
-                });
-                if kind == "options" {
-                    match crate::minecraft::parse_settings(&content, kind, profile) {
-                        Ok(settings) => {
-                            let available = 10000usize.saturating_sub(report.settings.len());
-                            if settings.len() > available {
-                                report.warnings.push(
-                                    "The setting limit was reached. Choose a specific profile."
-                                        .into(),
-                                );
+    };
+    if lunar_profile && lunar_options {
+        let primary =
+            inspect_minecraft_file(directory, profile, "optionsLC.txt", "options", report, seen);
+        let legacy = inspect_minecraft_file(
+            directory,
+            profile,
+            "options.txt",
+            "options_legacy",
+            report,
+            seen,
+        );
+        if let Some((path, content)) = primary {
+            let primary = crate::minecraft::parse_file(&content, "options", profile, &path);
+            let document = crate::lunar::parse_document(&content);
+            match (primary, document) {
+                (Ok(settings), Ok(document)) => {
+                    let mut settings: BTreeMap<_, _> = settings
+                        .into_iter()
+                        .map(|setting| (setting.pointer.clone(), setting))
+                        .collect();
+                    if let Some((path, content)) = legacy {
+                        match crate::minecraft::parse_file(&content, "options", profile, &path) {
+                            Ok(legacy) => {
+                                for setting in legacy {
+                                    if !document.as_object().unwrap().contains_key(&setting.pointer)
+                                    {
+                                        settings.insert(setting.pointer.clone(), setting);
+                                    }
+                                }
                             }
-                            report.settings.extend(settings.into_iter().take(available));
+                            Err(error) => report.warnings.push(error),
                         }
-                        Err(error) => report.warnings.push(error),
                     }
-                } else {
-                    report.warnings.push("OptiFine settings were detected. Their unverified fields remain read-only.".into());
+                    append_minecraft_settings(settings.into_values(), report);
                 }
+                (Err(error), _) | (_, Err(error)) => report.warnings.push(error),
             }
+        }
+    } else if let Some((path, content)) =
+        inspect_minecraft_file(directory, profile, "options.txt", "options", report, seen)
+    {
+        match crate::minecraft::parse_file(&content, "options", profile, &path) {
+            Ok(settings) => append_minecraft_settings(settings, report),
             Err(error) => report.warnings.push(error),
+        }
+    }
+    let _ = inspect_minecraft_file(
+        directory,
+        profile,
+        "optionsof.txt",
+        "optionsof",
+        report,
+        seen,
+    );
+    if !lunar_profile && lunar_options {
+        if let Some((path, content)) = inspect_minecraft_file(
+            directory,
+            &format!("Lunar {profile}"),
+            "optionsLC.txt",
+            "options",
+            report,
+            seen,
+        ) {
+            match crate::minecraft::parse_file(
+                &content,
+                "options",
+                &format!("Lunar {profile}"),
+                &path,
+            ) {
+                Ok(settings) => append_minecraft_settings(settings, report),
+                Err(error) => report.warnings.push(error),
+            }
+        }
+    }
+}
+
+fn append_minecraft_settings(
+    settings: impl IntoIterator<Item = crate::model::Setting>,
+    report: &mut ScanReport,
+) {
+    let available = 10000usize.saturating_sub(report.settings.len());
+    let settings: Vec<_> = settings.into_iter().collect();
+    if settings.len() > available {
+        report
+            .warnings
+            .push("The setting limit was reached. Choose a specific profile.".into());
+    }
+    report.settings.extend(settings.into_iter().take(available));
+}
+
+fn inspect_minecraft_file(
+    directory: &Path,
+    profile: &str,
+    name: &str,
+    kind: &str,
+    report: &mut ScanReport,
+    seen: &mut BTreeSet<PathBuf>,
+) -> Option<(PathBuf, String)> {
+    let path = directory.join(name);
+    if seen.contains(&path) {
+        return None;
+    }
+    if fs::symlink_metadata(&path).is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    {
+        return None;
+    }
+    if report.files.len() >= MAX_FILES {
+        report
+            .warnings
+            .push("The scan file limit was reached. Choose a specific settings folder.".into());
+        return None;
+    }
+    match read_allowed_file(&path) {
+        Ok((path, content)) => {
+            seen.insert(path.clone());
+            report.minecraft_detected = true;
+            report.files.push(ScanFile {
+                id: file_id("minecraft", profile, kind),
+                source: "minecraft".into(),
+                path: path.to_string_lossy().into(),
+                file_kind: kind.into(),
+                profile: profile.into(),
+            });
+            if kind == "optionsof" {
+                report.warnings.push(
+                    "OptiFine settings were detected. Their unverified fields remain read-only."
+                        .into(),
+                );
+            }
+            Some((path, content))
+        }
+        Err(error) => {
+            report.warnings.push(error);
+            None
         }
     }
 }
@@ -420,6 +524,193 @@ pub fn detect_running_processes() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn inspect_profile(path: &Path, lunar: bool) -> ScanReport {
+        let mut report = ScanReport::default();
+        inspect_minecraft(
+            path,
+            if lunar { "Lunar Test" } else { "Vanilla" },
+            lunar,
+            &mut report,
+            &mut BTreeSet::new(),
+        );
+        report
+    }
+
+    #[test]
+    fn lunar_json_values_take_priority_and_legacy_only_keys_remain_available() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let json = "\u{feff}{\r\n\"fov\":\"80.0\",\"guiScale\":\"2\",\"future\":{\"raw\":[1,true]}\r\n}\r\n";
+        let text = "fov:-0.5\r\nguiScale:1\r\ngraphicsMode:1\r\nresourcePacks:[\"vanilla\"]\r\n";
+        fs::write(root.join("optionsLC.txt"), json).unwrap();
+        fs::write(root.join("options.txt"), text).unwrap();
+        fs::write(root.join("accounts.json"), [0xff, 0x00]).unwrap();
+        let report = inspect_profile(&root, true);
+        assert_eq!(report.files.len(), 2);
+        assert_eq!(report.files[0].file_kind, "options");
+        assert!(report.files[0].path.ends_with("optionsLC.txt"));
+        assert_eq!(report.files[1].file_kind, "options_legacy");
+        assert!(report.files[1].path.ends_with("options.txt"));
+        assert_ne!(report.files[0].id, report.files[1].id);
+        let values: BTreeMap<_, _> = report
+            .settings
+            .iter()
+            .map(|setting| (setting.pointer.as_str(), setting.value.as_str().unwrap()))
+            .collect();
+        assert_eq!(values.len(), report.settings.len());
+        assert_eq!(values.get("fov"), Some(&"0.25"));
+        assert_eq!(values.get("guiScale"), Some(&"2"));
+        assert_eq!(values.get("graphicsMode"), Some(&"1"));
+        assert_eq!(values.get("resourcePacks"), Some(&"[\"vanilla\"]"));
+        assert!(report.settings.iter().all(|setting| {
+            setting.source == "minecraft"
+                && setting.file_kind == "options"
+                && setting.profile == "Lunar Test"
+        }));
+        assert_eq!(
+            fs::read(root.join("optionsLC.txt")).unwrap(),
+            json.as_bytes()
+        );
+        assert_eq!(fs::read(root.join("options.txt")).unwrap(), text.as_bytes());
+        assert_eq!(fs::read(root.join("accounts.json")).unwrap(), [0xff, 0x00]);
+    }
+
+    #[test]
+    fn legacy_lunar_options_remain_primary_when_json_file_is_absent() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        fs::write(root.join("options.txt"), "fov:0.5\r\nguiScale:2\r\n").unwrap();
+        let report = inspect_profile(&root, true);
+        assert_eq!(report.files.len(), 1);
+        assert_eq!(report.files[0].file_kind, "options");
+        assert!(report.files[0].path.ends_with("options.txt"));
+        assert_eq!(report.settings.len(), 2);
+    }
+
+    #[test]
+    fn damaged_lunar_json_never_uses_legacy_settings_as_fallback() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let legacy = "fov:0.5\nguiScale:2\n";
+        fs::write(root.join("options.txt"), legacy).unwrap();
+        for damaged in [
+            b"{\"fov\":\"80\"".as_slice(),
+            b"[]".as_slice(),
+            b"{\"fov\":\"80\",\"fov\":\"90\"}".as_slice(),
+            &[0xff],
+        ] {
+            fs::write(root.join("optionsLC.txt"), damaged).unwrap();
+            let report = inspect_profile(&root, true);
+            assert!(report.settings.is_empty());
+            assert!(!report.warnings.is_empty());
+            assert!(report
+                .files
+                .iter()
+                .any(|file| file.file_kind == "options_legacy"));
+            assert!(!report
+                .files
+                .iter()
+                .any(|file| file.path.ends_with("options.txt") && file.file_kind == "options"));
+            assert_eq!(fs::read(root.join("optionsLC.txt")).unwrap(), damaged);
+            assert_eq!(
+                fs::read(root.join("options.txt")).unwrap(),
+                legacy.as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_lunar_values_block_per_key_legacy_fallback() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        fs::write(
+            root.join("optionsLC.txt"),
+            r#"{"fov":"80","guiScale":null,"gamma":"private","future":true}"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("options.txt"),
+            "fov:0.5\nguiScale:2\ngamma:1\ngraphicsMode:1\n",
+        )
+        .unwrap();
+        let report = inspect_profile(&root, true);
+        let pointers: BTreeSet<_> = report
+            .settings
+            .iter()
+            .map(|setting| setting.pointer.as_str())
+            .collect();
+        assert_eq!(pointers, BTreeSet::from(["fov", "graphicsMode"]));
+    }
+
+    #[test]
+    fn lunar_json_in_vanilla_folder_uses_an_independent_profile() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        fs::write(root.join("optionsLC.txt"), r#"{"fov":"80"}"#).unwrap();
+        fs::write(root.join("options.txt"), "fov:-0.5\n").unwrap();
+        let report = inspect_profile(&root, false);
+        assert_eq!(report.files.len(), 2);
+        assert_eq!(report.settings.len(), 2);
+        assert!(report.files.iter().all(|file| file.file_kind == "options"));
+        let profiles: BTreeMap<_, _> = report
+            .settings
+            .iter()
+            .map(|setting| (setting.profile.as_str(), setting.value.as_str().unwrap()))
+            .collect();
+        assert_eq!(profiles.get("Vanilla"), Some(&"-0.5"));
+        assert_eq!(profiles.get("Lunar Vanilla"), Some(&"0.25"));
+        assert_eq!(
+            report
+                .files
+                .iter()
+                .filter(|file| file.path.ends_with("options.txt"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn explicit_lunar_game_folder_is_scanned_without_a_profiles_parent() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        fs::write(root.join("optionsLC.txt"), r#"{"guiScale":"2"}"#).unwrap();
+        fs::write(root.join("options.txt"), "guiScale:1\n").unwrap();
+        let report = scan(ScanRequest {
+            minecraft_root: Some(root.join("absent").to_string_lossy().into()),
+            lunar_root: Some(root.to_string_lossy().into()),
+        })
+        .unwrap();
+        assert_eq!(report.files.len(), 2);
+        assert_eq!(report.settings.len(), 1);
+        assert_eq!(report.settings[0].profile, "Lunar Default");
+        assert_eq!(report.settings[0].value, serde_json::json!("2"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn linked_and_dangling_lunar_json_files_prevent_legacy_fallback() {
+        use std::os::unix::fs::symlink;
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let external = root.join("external");
+        let game = root.join("game");
+        fs::create_dir(&game).unwrap();
+        fs::write(&external, r#"{"fov":"80"}"#).unwrap();
+        fs::write(game.join("options.txt"), "fov:0.5\n").unwrap();
+        symlink(&external, game.join("optionsLC.txt")).unwrap();
+        for exists in [true, false] {
+            if !exists {
+                fs::remove_file(&external).unwrap();
+            }
+            let report = inspect_profile(&game, true);
+            assert!(report.settings.is_empty());
+            assert!(!report.warnings.is_empty());
+            assert_eq!(report.files.len(), 1);
+            assert_eq!(report.files[0].file_kind, "options_legacy");
+            assert_eq!(fs::read(game.join("options.txt")).unwrap(), b"fov:0.5\n");
+        }
+    }
 
     #[test]
     fn version_names_support_year_versions_without_private_suffixes() {

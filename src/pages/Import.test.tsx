@@ -30,7 +30,7 @@ const bridge = vi.hoisted(() => ({
 
 vi.mock("../services/backend", () => ({ isDesktop: true, backend: bridge }));
 
-const minecraftPath = "/Users/sample/.lunarclient/profiles/1.21/options.txt";
+const minecraftPath = "/Users/sample/.lunarclient/profiles/1.21/optionsLC.txt";
 const lunarPath = "/Users/sample/.lunarclient/settings/game/default/mods.json";
 const setting = (
   id: string,

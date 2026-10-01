@@ -3,6 +3,60 @@ import type { Language } from "../models";
 type MessageRow = [string, string, string, string, string, string, string];
 const rows: MessageRow[] = [
   [
+    "This Minecraft settings file is unsupported.",
+    "This Minecraft settings file is unsupported.",
+    "이 Minecraft 설정 파일은 지원하지 않습니다.",
+    "不支持此 Minecraft 设置文件。",
+    "Tätä Minecraft-asetustiedostoa ei tueta.",
+    "Este archivo de ajustes de Minecraft no es compatible.",
+    "Diese Minecraft-Einstellungsdatei wird nicht unterstützt.",
+  ],
+  [
+    "This Lunar game setting uses an unsupported value type.",
+    "The value format of this Lunar game setting is unsupported.",
+    "이 Lunar 게임 설정 값의 형식은 지원하지 않습니다.",
+    "不支持此 Lunar 游戏设置的值格式。",
+    "Tämän Lunar-peliasetuksen arvon muotoa ei tueta.",
+    "El formato del valor de este ajuste del juego de Lunar no es compatible.",
+    "Das Werteformat dieser Lunar-Spieleinstellung wird nicht unterstützt.",
+  ],
+  [
+    "This FOV value is unavailable in this Lunar version.",
+    "This FOV value cannot be used in this Lunar version.",
+    "이 FOV 값은 현재 Lunar 버전에서 사용할 수 없습니다.",
+    "此 FOV 值在当前 Lunar 版本中不可用。",
+    "Tätä FOV-arvoa ei voi käyttää tässä Lunar-versiossa.",
+    "Este valor de FOV no se puede usar en esta versión de Lunar.",
+    "Dieser FOV-Wert kann in dieser Lunar-Version nicht verwendet werden.",
+  ],
+  [
+    "A selected setting is unavailable in this Lunar version.",
+    "A selected setting is unavailable in this Lunar version.",
+    "선택한 설정은 현재 Lunar 버전에서 사용할 수 없습니다.",
+    "所选设置在当前 Lunar 版本中不可用。",
+    "Valittua asetusta ei voi käyttää tässä Lunar-versiossa.",
+    "Uno de los ajustes seleccionados no está disponible en esta versión de Lunar.",
+    "Eine ausgewählte Einstellung ist in dieser Lunar-Version nicht verfügbar.",
+  ],
+  [
+    "The selected Lunar settings exceed the supported limit.",
+    "Too many Lunar settings are selected. Select fewer settings.",
+    "선택한 Lunar 설정 수가 한도를 초과했습니다. 항목 수를 줄여 주세요.",
+    "选择的 Lunar 设置数量超出上限。请减少所选项。",
+    "Valittujen Lunar-asetusten määrä ylittää rajan. Valitse vähemmän asetuksia.",
+    "La cantidad de ajustes de Lunar seleccionados supera el límite. Selecciona menos ajustes.",
+    "Zu viele Lunar-Einstellungen ausgewählt. Bitte weniger Einstellungen auswählen.",
+  ],
+  [
+    "Lunar game settings could not be accessed. Check the settings folder and try scanning again.",
+    "Lunar game settings could not be opened. Check the settings folder and scan again.",
+    "Lunar 게임 설정을 열 수 없습니다. 설정 폴더를 확인한 뒤 다시 검색하세요.",
+    "无法打开 Lunar 游戏设置。请检查设置文件夹后重新检测。",
+    "Lunar-peliasetuksia ei voitu avata. Tarkista asetuskansio ja etsi asetukset uudelleen.",
+    "No se pudieron abrir los ajustes del juego de Lunar. Revisa la carpeta de ajustes y vuelve a detectarlos.",
+    "Lunar-Spieleinstellungen konnten nicht geöffnet werden. Den Einstellungsordner prüfen und erneut suchen.",
+  ],
+  [
     "OptiFine settings were detected. Their unverified fields remain read-only.",
     "OptiFine settings detected. Reading and backup are supported.",
     "OptiFine 설정을 감지했습니다. 읽기와 백업을 지원합니다.",
@@ -2891,6 +2945,18 @@ export const messages: Record<
 );
 
 export const japaneseMessages: Record<string, string> = {
+  "This Minecraft settings file is unsupported.":
+    "この Minecraft 設定ファイルには対応していません。",
+  "This Lunar game setting uses an unsupported value type.":
+    "この Lunar ゲーム設定の値の形式には対応していません。",
+  "This FOV value is unavailable in this Lunar version.":
+    "この FOV の値は、現在の Lunar バージョンでは使用できません。",
+  "A selected setting is unavailable in this Lunar version.":
+    "選択した設定は、現在の Lunar バージョンでは利用できません。",
+  "The selected Lunar settings exceed the supported limit.":
+    "Lunar 設定の選択数が上限を超えています。項目を減らしてください。",
+  "Lunar game settings could not be accessed. Check the settings folder and try scanning again.":
+    "Lunar のゲーム設定を開けませんでした。設定フォルダを確認して、再検出してください。",
   DEMO: "デモ",
   PREVIEW: "プレビュー",
   "LOCAL FIRST": "ローカル処理",

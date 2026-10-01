@@ -1,13 +1,17 @@
 # Prism Relay 1.0.1
 
-設定の読み込み先が複数あると、使用中とは別のMinecraft・Lunarプロフィールへ自動的に適用してしまう問題を修正しました。
+Lunar Clientで、共有コードの読み込みに成功してもゲーム設定が反映されない問題と、適用先が複数あると別のプロフィールが自動で選ばれる問題を修正しました。
 
 - 保存先が複数ある場合は、適用するプロフィールを選択
+- Lunarの `optionsLC.txt`（JSON形式）に対応。バージョン別フォルダでは `options.txt` とまとめて更新・バックアップ
+- LunarとMinecraftで保存形式が異なるFOVを変換
 - 差分・確認・完了画面に、対象のプロフィールと設定ファイルを表示
 - 適用に失敗した後は、最新の差分を確認して再試行
 - Mac・Windowsで、異なる共有コードの連続適用とバックアップからの復元を検証
 
 Lunar Clientの操作・画面設定は、**Minecraft（ゲーム設定）**の適用先で使用中のLunarバージョンを選びます。**Lunar（HUD・MOD設定）**はHUDやMODのプロフィールです。
+
+ゲームを終了してから適用し、完了後に起動してください。Lunar 1.21.11の設定フォルダが `1.21` の場合は、適用先で「Lunar 1.21」を選びます。
 
 Windowsはx64・ARM64のMSIまたはsetup.exe、MacはApple Silicon・IntelのDMGを選んでインストールしてください。対応するソースは、添付の `prism-relay-v1.0.1-source.tar.gz` です。
 
@@ -23,8 +27,6 @@ Apple SiliconまたはIntelのDMGを開き、Prism RelayをApplicationsへドラ
 4. 確認画面で **「開く」** を選びます。
 
 許可後は通常どおり起動できます。詳しくは[Appleの案内](https://support.apple.com/ja-jp/102445#openanyway)を参照してください。
-
-
 各ファイルのSHA-256は `SHA256SUMS.txt`、ビルド元は `BUILD_INFO.json` で確認できます。
 
 作者: Shake_1227 · [X: @shake_1227](https://x.com/shake_1227)

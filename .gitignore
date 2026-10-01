@@ -19,6 +19,7 @@ userdata/
 .minecraft/
 .lunarclient/
 options.txt
+optionsLC.txt
 optionsof.txt
 servers.dat
 servers.dat_old
