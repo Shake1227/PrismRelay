@@ -1,6 +1,6 @@
 export function qrShareCode(text: string): string {
   const code = text.trim();
-  if (code.length > 2 * 1024 * 1024 || !/^(PRS[12]:|PRDEMO1:)/.test(code))
+  if (code.length > 2 * 1024 * 1024 || !/^(PRS[123]:|PRDEMO1:)/.test(code))
     throw new Error("Prism Relayの共有コードを含むQR画像を選択してください。");
   return code;
 }

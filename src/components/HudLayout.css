@@ -1,0 +1,81 @@
+.hud-layout-controls {
+  margin: 0 20px 18px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.hud-layout-controls > .toggle-label {
+  justify-content: flex-start;
+  line-height: 1.7;
+}
+.hud-manual-size {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.hud-manual-size legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 9px;
+}
+.hud-size-fields {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hud-size-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 112px;
+}
+.hud-size-fields > label > span {
+  font-size: 9px;
+}
+.hud-size-fields input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 9px 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 10px;
+}
+.hud-size-times,
+.hud-size-fields > button {
+  margin-bottom: 10px;
+}
+.hud-size-validation {
+  margin-top: 10px;
+  font-size: 9px;
+  line-height: 1.7;
+}
+.hud-layout-summary {
+  margin: 0 20px 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--accent-bg);
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.8;
+}
+.hud-layout-summary strong {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+}
+.hud-layout-summary p {
+  margin-top: 7px;
+}
+.hud-layout-summary .hud-window-size {
+  margin-right: 12px;
+  color: var(--text);
+}
+.hud-layout-warning {
+  border-color: var(--line-strong);
+}
+.modal > .hud-layout-summary {
+  margin: 16px 0 0;
+}

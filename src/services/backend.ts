@@ -31,9 +31,13 @@ export const backend = {
     isDesktop
       ? invoke<ScanReport>("scan_configuration", { request })
       : Promise.resolve(demoScan),
-  encode: (settings: Setting[], metadata: ShareMetadata) =>
+  encode: (
+    settings: Setting[],
+    metadata: ShareMetadata,
+    request: ScanRequest = {},
+  ) =>
     isDesktop
-      ? invoke<EncodedShare>("encode_share", { settings, metadata })
+      ? invoke<EncodedShare>("encode_share", { settings, metadata, request })
       : Promise.resolve(encodeDemo(settings, metadata)),
   decode: (code: string) =>
     isDesktop

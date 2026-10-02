@@ -1,5 +1,7 @@
 use crate::backup::{self, BackupManifest, BackupStore, FileUpdate};
 use crate::codec;
+use crate::display::PixelSize;
+use crate::hud::HudWindow;
 use crate::model::{ScanReport, ScanRequest, Setting};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -34,6 +36,60 @@ pub struct ImportPreview {
     pub selected_count: usize,
     pub fingerprint: String,
     pub target_files: Vec<ImportFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hud_layout: Option<HudLayoutPreview>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum HudLayoutMode {
+    #[default]
+    Auto,
+    Preserve,
+    Manual,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields, default)]
+pub struct HudLayoutRequest {
+    pub mode: HudLayoutMode,
+    pub window_size: Option<PixelSize>,
+}
+
+impl HudLayoutRequest {
+    pub fn validate(&self) -> Result<(), String> {
+        let valid = match (&self.mode, self.window_size) {
+            (HudLayoutMode::Auto | HudLayoutMode::Preserve, None) => true,
+            (HudLayoutMode::Manual, Some(size)) => {
+                (320..=32768).contains(&size.width) && (240..=32768).contains(&size.height)
+            }
+            _ => false,
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(
+                "Enter a window width from 320 to 32768 and a height from 240 to 32768 pixels."
+                    .into(),
+            )
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HudLayoutContext {
+    pub window_size: Option<PixelSize>,
+    pub window: Option<HudWindow>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HudLayoutPreview {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_size: Option<PixelSize>,
+    pub adjusted_count: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -61,13 +117,40 @@ struct ImportPlan {
     files: Vec<PlannedFile>,
 }
 
+fn is_gui_setting(setting: &Setting) -> bool {
+    setting.source == "minecraft"
+        && setting.file_kind == "options"
+        && matches!(setting.pointer.as_str(), "guiScale" | "forceUnicodeFont")
+}
+
 pub fn preview(
     code: &str,
     selected_ids: &[String],
     target: &ImportTarget,
     request: &ScanRequest,
 ) -> Result<ImportPreview, String> {
-    Ok(plan(code, selected_ids, target, request)?.preview)
+    preview_with_layout(
+        code,
+        selected_ids,
+        target,
+        request,
+        &HudLayoutRequest {
+            mode: HudLayoutMode::Preserve,
+            window_size: None,
+        },
+        &HudLayoutContext::default(),
+    )
+}
+
+pub fn preview_with_layout(
+    code: &str,
+    selected_ids: &[String],
+    target: &ImportTarget,
+    request: &ScanRequest,
+    layout: &HudLayoutRequest,
+    context: &HudLayoutContext,
+) -> Result<ImportPreview, String> {
+    Ok(plan(code, selected_ids, target, request, layout, context)?.preview)
 }
 
 pub fn apply(
@@ -79,17 +162,53 @@ pub fn apply(
     allow_running: bool,
     preview_fingerprint: &str,
 ) -> Result<BackupManifest, String> {
+    apply_with_layout(
+        store,
+        code,
+        selected_ids,
+        target,
+        request,
+        allow_running,
+        preview_fingerprint,
+        &HudLayoutRequest {
+            mode: HudLayoutMode::Preserve,
+            window_size: None,
+        },
+        &HudLayoutContext::default(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn apply_with_layout(
+    store: &BackupStore,
+    code: &str,
+    selected_ids: &[String],
+    target: &ImportTarget,
+    request: &ScanRequest,
+    allow_running: bool,
+    preview_fingerprint: &str,
+    layout: &HudLayoutRequest,
+    context: &HudLayoutContext,
+) -> Result<BackupManifest, String> {
     if preview_fingerprint.len() != 64
         || !preview_fingerprint.bytes().all(|c| c.is_ascii_hexdigit())
     {
         return Err("Review the import preview before applying these settings.".into());
     }
-    let plan = plan(code, selected_ids, target, request)?;
+    let plan = plan(code, selected_ids, target, request, layout, context)?;
     if plan.preview.fingerprint != preview_fingerprint {
         return Err(
             "Settings changed since the preview. Review the differences again before importing."
                 .into(),
         );
+    }
+    if plan
+        .preview
+        .hud_layout
+        .as_ref()
+        .is_some_and(|layout| matches!(layout.status.as_str(), "missing-source" | "unavailable"))
+    {
+        return Err("HUD positions could not be adjusted. Create a new share code or keep the original values.".into());
     }
     if !allow_running && !plan.report.running_processes.is_empty() {
         return Err(
@@ -126,7 +245,10 @@ fn plan(
     selected_ids: &[String],
     target: &ImportTarget,
     request: &ScanRequest,
+    layout: &HudLayoutRequest,
+    context: &HudLayoutContext,
 ) -> Result<ImportPlan, String> {
+    layout.validate()?;
     let envelope = codec::decode(code)?;
     if selected_ids.is_empty() || selected_ids.len() > codec::MAX_SETTINGS {
         return Err("Select at least one setting to import.".into());
@@ -143,6 +265,82 @@ fn plan(
     }
     let report = crate::scanner::scan(request.clone())?;
     let mut warnings = report.warnings.clone();
+    let mut selected_settings: Vec<Setting> = envelope
+        .settings
+        .iter()
+        .filter(|setting| selected.contains(setting.id.as_str()))
+        .cloned()
+        .collect();
+    let has_layout = selected_settings
+        .iter()
+        .any(crate::hud::is_adaptable_coordinate);
+    let applied_gui_settings = if has_layout
+        && layout.mode != HudLayoutMode::Preserve
+        && selected_settings.iter().any(is_gui_setting)
+    {
+        let baseline = plan(
+            code,
+            selected_ids,
+            target,
+            request,
+            &HudLayoutRequest {
+                mode: HudLayoutMode::Preserve,
+                window_size: None,
+            },
+            &HudLayoutContext::default(),
+        )?;
+        selected_settings
+            .iter()
+            .filter(|setting| {
+                is_gui_setting(setting)
+                    && baseline
+                        .preview
+                        .changes
+                        .iter()
+                        .any(|change| change.id == setting.id)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let mut resolved_hud_viewport = None;
+    let hud_layout = if has_layout && layout.mode != HudLayoutMode::Preserve {
+        let mut preview = HudLayoutPreview {
+            status: "unavailable".into(),
+            window_size: context.window_size,
+            adjusted_count: 0,
+        };
+        if let Some(source) = envelope.metadata.hud_viewport.as_ref() {
+            let viewport = context.window.as_ref().and_then(|window| {
+                crate::hud::viewport(
+                    &report,
+                    &target.lunar_profile,
+                    window,
+                    &applied_gui_settings,
+                )
+                .ok()
+            });
+            if let Some(viewport) = viewport {
+                let adjustment =
+                    crate::hud::adapt(&selected_settings, Some(source), Some(&viewport))?;
+                resolved_hud_viewport = Some(viewport);
+                preview.adjusted_count = adjustment.adjusted_count;
+                preview.status = if adjustment.adjusted_count == 0 {
+                    "unchanged"
+                } else {
+                    "adjusted"
+                }
+                .into();
+                selected_settings = adjustment.settings;
+            }
+        } else {
+            preview.status = "missing-source".into();
+        }
+        Some(preview)
+    } else {
+        None
+    };
     if envelope
         .metadata
         .minecraft_version
@@ -159,11 +357,7 @@ fn plan(
     let mut target_paths = BTreeSet::new();
     let mut unsupported = 0;
     let mut hud_coordinates = false;
-    'settings: for incoming in envelope
-        .settings
-        .iter()
-        .filter(|setting| selected.contains(setting.id.as_str()))
-    {
+    'settings: for incoming in &selected_settings {
         let profile = if incoming.source == "minecraft" {
             &target.minecraft_profile
         } else {
@@ -371,14 +565,23 @@ fn plan(
     if unsupported > 0 {
         warnings.push(format!("{unsupported} selected settings are unavailable or use a different schema. They will be skipped."));
     }
-    if hud_coordinates {
+    if hud_coordinates && layout.mode == HudLayoutMode::Preserve {
         warnings.push("HUD coordinates will be copied as stored. Their layout can differ on another display; no unverified resolution scaling is applied.".into());
     }
     let mut hasher = Sha256::new();
     hasher.update(b"prism-relay-import-preview-v1");
     hasher.update(Sha256::digest(code.trim().as_bytes()));
-    let identity = serde_json::to_vec(&(selected, target, request))
-        .map_err(|_| "The import selection could not be verified.".to_string())?;
+    let identity = serde_json::to_vec(&(
+        selected,
+        target,
+        request,
+        layout,
+        context,
+        &hud_layout,
+        &selected_settings,
+        &resolved_hud_viewport,
+    ))
+    .map_err(|_| "The import selection could not be verified.".to_string())?;
     hasher.update((identity.len() as u64).to_be_bytes());
     hasher.update(identity);
     for (path, file) in &files {
@@ -394,6 +597,7 @@ fn plan(
         changes,
         warnings,
         fingerprint: format!("{:x}", hasher.finalize()),
+        hud_layout,
         target_files: target_paths
             .iter()
             .filter_map(|path| {
@@ -463,6 +667,7 @@ mod tests {
             ShareMetadata {
                 minecraft_version: Some("1.21".into()),
                 lunar_version: None,
+                hud_viewport: None,
                 platform: platform.into(),
             },
         )
@@ -938,5 +1143,375 @@ mod tests {
         let (code, ids) =
             code(crate::minecraft::parse_settings("fov:0.75", "options", "Other").unwrap());
         assert!(preview(&code, &ids, &target, &request).is_err());
+    }
+
+    fn layout_fixture() -> (
+        tempfile::TempDir,
+        ScanRequest,
+        ImportTarget,
+        BackupStore,
+        HudLayoutContext,
+    ) {
+        let (directory, request, target, store) = fixture();
+        let minecraft = PathBuf::from(request.minecraft_root.as_ref().unwrap());
+        fs::write(
+            minecraft.join("options.txt"),
+            "fov:0.5\nguiScale:2\nforceUnicodeFont:false\nfutureKey:preserved:value\n",
+        )
+        .unwrap();
+        fs::write(
+            minecraft.join("optionsLC.txt"),
+            r#"{"fov":"90","guiScale":"2","forceUnicodeFont":"false","lastLaunchedVersion":"v1_21_11"}"#,
+        )
+        .unwrap();
+        let profile =
+            PathBuf::from(request.lunar_root.as_ref().unwrap()).join("settings/game/Destination");
+        fs::write(
+            profile.join("general.json"),
+            r#"{"useMinecraftScale":"all","highDPIScale":true,"future":123}"#,
+        )
+        .unwrap();
+        fs::write(
+            profile.join("mods.json"),
+            r#"{"FPS":{"enabled":false,"x":10,"y":20,"position":"topRight","unknown":0.9000000000000000001},"future":{"data":[1,2]}}"#,
+        )
+        .unwrap();
+        let context = HudLayoutContext {
+            window_size: Some(PixelSize {
+                width: 2400,
+                height: 1600,
+            }),
+            window: Some(HudWindow {
+                physical_width: 2400,
+                physical_height: 1600,
+                logical_height: 800,
+                macos: true,
+            }),
+        };
+        (directory, request, target, store, context)
+    }
+
+    fn layout_code(x: f64, y: f64, enabled: bool) -> (String, Vec<String>) {
+        let settings = crate::lunar::parse_settings(
+            &serde_json::json!({"FPS":{"enabled":enabled,"x":x,"y":y,"position":"topRight"}})
+                .to_string(),
+            "mods",
+            "Windows source",
+        )
+        .unwrap();
+        let code = encode(
+            settings,
+            ShareMetadata {
+                minecraft_version: None,
+                lunar_version: None,
+                platform: "windows".into(),
+                hud_viewport: Some(crate::hud::HudViewport {
+                    width: 960.0,
+                    height: 540.0,
+                }),
+            },
+        )
+        .unwrap()
+        .code;
+        let ids = codec::decode(&code)
+            .unwrap()
+            .settings
+            .into_iter()
+            .map(|setting| setting.id)
+            .collect();
+        (code, ids)
+    }
+
+    #[test]
+    fn windows_hud_layout_adapts_to_mac_client_and_consecutive_imports_restore_exactly() {
+        let (_directory, request, target, store, context) = layout_fixture();
+        let path = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let layout = HudLayoutRequest::default();
+        let mut before_second = Vec::new();
+        let mut second_backup = None;
+        for (index, (x, y, enabled, expected_x, expected_y)) in [
+            (100.0, -54.0, true, 250.0, -160.0),
+            (64.0, 27.0, false, 160.0, 80.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (code, ids) = layout_code(x, y, enabled);
+            let preview =
+                preview_with_layout(&code, &ids, &target, &request, &layout, &context).unwrap();
+            let preview_layout = preview.hud_layout.as_ref().unwrap();
+            assert_eq!(preview_layout.status, "adjusted");
+            assert_eq!(preview_layout.adjusted_count, 2);
+            assert_eq!(preview_layout.window_size, context.window_size);
+            assert!(preview
+                .changes
+                .iter()
+                .any(|change| change.label == "X" && change.incoming.as_f64() == Some(expected_x)));
+            if index == 1 {
+                before_second = fs::read(&path).unwrap();
+            }
+            let _lock = store.lock().unwrap();
+            let backup = apply_with_layout(
+                &store,
+                &code,
+                &ids,
+                &target,
+                &request,
+                true,
+                &preview.fingerprint,
+                &layout,
+                &context,
+            )
+            .unwrap();
+            assert_eq!(backup.files.len(), 1);
+            if index == 1 {
+                second_backup = Some(backup);
+            }
+            let content = fs::read_to_string(&path).unwrap();
+            let actual = crate::lunar::parse_document(&content).unwrap();
+            assert_eq!(actual["FPS"]["x"].as_f64(), Some(expected_x));
+            assert_eq!(actual["FPS"]["y"].as_f64(), Some(expected_y));
+            assert_eq!(actual["FPS"]["enabled"], enabled);
+            assert_eq!(actual["FPS"]["position"], "topRight");
+            assert!(content.contains("\"unknown\":0.9000000000000000001"));
+            let repeated =
+                preview_with_layout(&code, &ids, &target, &request, &layout, &context).unwrap();
+            assert!(repeated.changes.iter().all(|change| !change.changed));
+        }
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        let _lock = store.lock().unwrap();
+        let updates = store.verify(&second_backup.unwrap(), &report).unwrap();
+        store.apply(&report, &request, "restore", updates).unwrap();
+        assert_eq!(fs::read(path).unwrap(), before_second);
+    }
+
+    #[test]
+    fn unselected_gui_scale_and_monitor_changes_require_a_new_layout_preview() {
+        let (_directory, request, target, store, context) = layout_fixture();
+        let layout = HudLayoutRequest::default();
+        let (code, ids) = layout_code(100.0, -54.0, true);
+        let preview =
+            preview_with_layout(&code, &ids, &target, &request, &layout, &context).unwrap();
+        let mut moved = context.clone();
+        moved.window.as_mut().unwrap().physical_width = 2000;
+        moved.window_size.as_mut().unwrap().width = 2000;
+        assert!(apply_with_layout(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &preview.fingerprint,
+            &layout,
+            &moved
+        )
+        .unwrap_err()
+        .contains("changed since the preview"));
+        let options = PathBuf::from(request.minecraft_root.as_ref().unwrap()).join("optionsLC.txt");
+        fs::write(
+            options,
+            r#"{"guiScale":"3","forceUnicodeFont":"false","lastLaunchedVersion":"v1_21_11"}"#,
+        )
+        .unwrap();
+        assert!(apply_with_layout(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &preview.fingerprint,
+            &layout,
+            &context
+        )
+        .unwrap_err()
+        .contains("changed since the preview"));
+    }
+
+    #[test]
+    fn zero_offsets_still_bind_the_effective_viewport_to_the_preview() {
+        let (_directory, request, target, store, context) = layout_fixture();
+        let layout = HudLayoutRequest::default();
+        let (code, ids) = layout_code(0.0, 0.0, true);
+        let preview =
+            preview_with_layout(&code, &ids, &target, &request, &layout, &context).unwrap();
+        assert_eq!(preview.hud_layout.as_ref().unwrap().status, "unchanged");
+        let options = PathBuf::from(request.minecraft_root.as_ref().unwrap()).join("optionsLC.txt");
+        fs::write(
+            options,
+            r#"{"guiScale":"4","forceUnicodeFont":"false","lastLaunchedVersion":"v1_21_11"}"#,
+        )
+        .unwrap();
+        assert!(apply_with_layout(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &preview.fingerprint,
+            &layout,
+            &context
+        )
+        .unwrap_err()
+        .contains("changed since the preview"));
+    }
+
+    #[test]
+    fn only_applied_gui_settings_affect_hud_adjustment() {
+        let (_directory, request, target, store, context) = layout_fixture();
+        let layout = HudLayoutRequest::default();
+        let (hud_code, _) = layout_code(96.0, 54.0, true);
+        let mut envelope = codec::decode(&hud_code).unwrap();
+        envelope
+            .settings
+            .extend(crate::minecraft::parse_settings("guiScale:4\n", "options", "Source").unwrap());
+        let code = encode(envelope.settings, envelope.metadata).unwrap().code;
+        let ids: Vec<_> = codec::decode(&code)
+            .unwrap()
+            .settings
+            .into_iter()
+            .map(|setting| setting.id)
+            .collect();
+        let mut missing_target = target.clone();
+        missing_target.minecraft_profile = "Missing".into();
+        let skipped =
+            preview_with_layout(&code, &ids, &missing_target, &request, &layout, &context).unwrap();
+        assert!(!skipped
+            .changes
+            .iter()
+            .any(|change| change.source == "minecraft"));
+        assert!(skipped
+            .changes
+            .iter()
+            .any(|change| change.label == "X" && change.incoming.as_f64() == Some(240.0)));
+        let preview =
+            preview_with_layout(&code, &ids, &target, &request, &layout, &context).unwrap();
+        assert!(preview
+            .changes
+            .iter()
+            .any(|change| change.label == "X" && change.incoming.as_f64() == Some(120.0)));
+        let _lock = store.lock().unwrap();
+        apply_with_layout(
+            &store,
+            &code,
+            &ids,
+            &target,
+            &request,
+            true,
+            &preview.fingerprint,
+            &layout,
+            &context,
+        )
+        .unwrap();
+        let minecraft = PathBuf::from(request.minecraft_root.as_ref().unwrap());
+        assert!(fs::read_to_string(minecraft.join("options.txt"))
+            .unwrap()
+            .contains("guiScale:4"));
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let document = crate::lunar::parse_document(&fs::read_to_string(mods).unwrap()).unwrap();
+        assert_eq!(document["FPS"]["x"].as_f64(), Some(120.0));
+        assert_eq!(document["FPS"]["y"].as_f64(), Some(80.0));
+    }
+
+    #[test]
+    fn legacy_source_and_missing_destination_geometry_need_explicit_preservation() {
+        let (_directory, request, target, store, context) = layout_fixture();
+        let layout = HudLayoutRequest::default();
+        let settings =
+            crate::lunar::parse_settings(r#"{"FPS":{"x":100}}"#, "mods", "Source").unwrap();
+        let (legacy_code, legacy_ids) = code(settings);
+        let preview = preview_with_layout(
+            &legacy_code,
+            &legacy_ids,
+            &target,
+            &request,
+            &layout,
+            &context,
+        )
+        .unwrap();
+        assert_eq!(
+            preview.hud_layout.as_ref().unwrap().status,
+            "missing-source"
+        );
+        assert!(apply_with_layout(
+            &store,
+            &legacy_code,
+            &legacy_ids,
+            &target,
+            &request,
+            true,
+            &preview.fingerprint,
+            &layout,
+            &context
+        )
+        .is_err());
+        let preserved = super::preview(&legacy_code, &legacy_ids, &target, &request).unwrap();
+        assert_eq!(preserved.changes[0].incoming.as_f64(), Some(100.0));
+        assert!(preserved.hud_layout.is_none());
+        let (modern_code, modern_ids) = layout_code(100.0, -54.0, true);
+        let unavailable = preview_with_layout(
+            &modern_code,
+            &modern_ids,
+            &target,
+            &request,
+            &layout,
+            &HudLayoutContext::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            unavailable.hud_layout.as_ref().unwrap().status,
+            "unavailable"
+        );
+        assert!(apply_with_layout(
+            &store,
+            &modern_code,
+            &modern_ids,
+            &target,
+            &request,
+            true,
+            &unavailable.fingerprint,
+            &layout,
+            &HudLayoutContext::default()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn manual_layout_dimensions_and_mode_are_validated() {
+        for request in [
+            HudLayoutRequest {
+                mode: HudLayoutMode::Manual,
+                window_size: None,
+            },
+            HudLayoutRequest {
+                mode: HudLayoutMode::Manual,
+                window_size: Some(PixelSize {
+                    width: 319,
+                    height: 240,
+                }),
+            },
+            HudLayoutRequest {
+                mode: HudLayoutMode::Auto,
+                window_size: Some(PixelSize {
+                    width: 1920,
+                    height: 1080,
+                }),
+            },
+        ] {
+            assert!(request.validate().is_err());
+        }
+        assert!(HudLayoutRequest {
+            mode: HudLayoutMode::Manual,
+            window_size: Some(PixelSize {
+                width: 1920,
+                height: 1000
+            })
+        }
+        .validate()
+        .is_ok());
     }
 }

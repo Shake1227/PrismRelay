@@ -283,6 +283,9 @@ pub fn lunar_value_is_safe(file_kind: &str, pointer: &str, value: &Value) -> boo
                     | "centerright"
                     | "middleleft"
                     | "middleright"
+                    | "middlecenter"
+                    | "bottomcenterleft"
+                    | "bottomcenterright"
                     | "topmiddle"
                     | "bottommiddle"
                     | "left"
@@ -351,5 +354,34 @@ mod tests {
             "resourcePacks",
             "[\"file/../accounts.json\"]"
         ));
+    }
+
+    #[test]
+    fn all_primary_hud_anchor_ids_are_supported_without_opening_the_grammar() {
+        for anchor in [
+            "topLeft",
+            "topCenter",
+            "topRight",
+            "middleLeft",
+            "middleCenter",
+            "middleRight",
+            "bottomLeft",
+            "bottomCenterLeft",
+            "bottomCenterRight",
+            "bottomRight",
+        ] {
+            assert!(lunar_value_is_safe("mods", "/FPS/position", &json!(anchor)));
+        }
+        for anchor in [
+            "futureAnchor",
+            "bottomCenterRight/private",
+            "server.example",
+        ] {
+            assert!(!lunar_value_is_safe(
+                "mods",
+                "/FPS/position",
+                &json!(anchor)
+            ));
+        }
     }
 }

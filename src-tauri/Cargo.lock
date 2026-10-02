@@ -2499,7 +2499,7 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
 name = "prism-relay"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "base64 0.22.1",
  "brotli 8.0.4",
@@ -2508,6 +2508,9 @@ dependencies = [
  "dunce",
  "fs2",
  "image",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "png 0.18.1",
  "reqwest 0.12.28",
  "rmp-serde",
@@ -2519,6 +2522,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tempfile",
+ "windows-sys 0.61.2",
  "zstd",
 ]
 

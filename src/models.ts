@@ -42,6 +42,20 @@ export interface ShareMetadata {
   minecraftVersion?: string;
   lunarVersion?: string;
   platform: string;
+  hudViewport?: WindowSize;
+}
+export interface WindowSize {
+  width: number;
+  height: number;
+}
+export interface HudLayoutOptions {
+  mode: "auto" | "preserve" | "manual";
+  windowSize?: WindowSize;
+}
+export interface HudLayoutPreview {
+  status: "adjusted" | "unchanged" | "missing-source" | "unavailable";
+  windowSize?: WindowSize;
+  adjustedCount: number;
 }
 export interface EncodedShare {
   code: string;
@@ -65,8 +79,10 @@ export interface ImportArguments {
   selectedIds: string[];
   target: TargetProfiles;
   request: ScanRequest;
+  hudLayout?: HudLayoutOptions;
 }
 export interface ImportPreview {
+  hudLayout?: HudLayoutPreview;
   fingerprint: string;
   targetFiles: {
     source: Source;

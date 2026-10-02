@@ -4,7 +4,7 @@ import { decodeQrPixels, qrShareCode } from "./qr";
 
 describe("QR share-code reading", () => {
   it("reads generated share-code QR pixels and preserves the exact code", async () => {
-    const code = "PRS2:synthetic-round-trip-test-1234567890";
+    const code = "PRS3:synthetic-round-trip-test-1234567890";
     const qr = QRCode.create(code, { errorCorrectionLevel: "M" });
     const scale = 5;
     const width = (qr.modules.size + 8) * scale;
@@ -33,6 +33,8 @@ describe("QR share-code reading", () => {
       decodeQrPixels(new Uint8ClampedArray(4), 4097, 1),
     ).rejects.toThrow();
     expect(qrShareCode("  PRS1:example\n")).toBe("PRS1:example");
+    expect(qrShareCode("PRS2:example")).toBe("PRS2:example");
+    expect(() => qrShareCode("PRS4:example")).toThrow();
   });
   it("reads a fixed legacy share code rendered at the exported PNG size", async () => {
     const code =

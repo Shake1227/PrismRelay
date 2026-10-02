@@ -10,6 +10,7 @@ import type {
   ShareMetadata,
 } from "../models";
 import { APP_VERSION } from "../version";
+import { hasRootHudCoordinates, parseWindowSize } from "../utils/hud";
 
 const fields: [string, string, string, JsonValue][] = [
   ["Video", "Display", "FOV", 90],
@@ -71,7 +72,7 @@ const lunar: Setting[] = [
       group: label,
       label: "Enabled",
       value: true,
-      fileKind: "json",
+      fileKind: "mods",
       profile: "default",
       pointer: `/hud/${label.toLowerCase().replaceAll(" ", "_")}/enabled`,
     },
@@ -82,7 +83,7 @@ const lunar: Setting[] = [
       group: label,
       label: "Scale",
       value: 1,
-      fileKind: "json",
+      fileKind: "mods",
       profile: "default",
       pointer: `/hud/${label.toLowerCase().replaceAll(" ", "_")}/scale`,
     },
@@ -95,14 +96,25 @@ const lunar: Setting[] = [
       group: label,
       label: "Enabled",
       value: true,
-      fileKind: "json",
+      fileKind: "mods",
       profile: "default",
       pointer: `/mods/${label.toLowerCase().replaceAll(" ", "_")}/enabled`,
     })),
   );
+const hudPositions: Setting[] = ["x", "y"].map((axis) => ({
+  id: `demo-hud-${axis}`,
+  source: "lunar",
+  category: "HUD",
+  group: "Coordinates",
+  label: axis.toUpperCase(),
+  value: axis === "x" ? 320 : 180,
+  fileKind: "mods",
+  profile: "default",
+  pointer: `/COORDINATES/${axis}`,
+}));
 
 export const demoScan: ScanReport = {
-  settings: [...lunar, ...minecraft],
+  settings: [...lunar, ...hudPositions, ...minecraft],
   files: [
     {
       id: "demo-options",
@@ -115,7 +127,7 @@ export const demoScan: ScanReport = {
       id: "demo-lunar",
       source: "lunar",
       path: "サンプル / Lunar / default / mods.json",
-      fileKind: "json",
+      fileKind: "mods",
       profile: "default",
     },
   ],
@@ -160,7 +172,12 @@ export function encodeDemo(
     formatVersion: 1,
     applicationVersion: APP_VERSION,
     createdAt: "2026-09-30T03:24:00Z",
-    metadata,
+    metadata: hasRootHudCoordinates(settings)
+      ? {
+          ...metadata,
+          hudViewport: metadata.hudViewport || { width: 960, height: 540 },
+        }
+      : metadata,
     settings,
   };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
@@ -195,6 +212,55 @@ export function decodeDemo(code: string): DecodedShare {
 
 export function previewDemo(args: ImportArguments): ImportPreview {
   const decoded = decodeDemo(args.code);
+  const settings = decoded.settings.filter((setting) =>
+    args.selectedIds.includes(setting.id),
+  );
+  const coordinates = hasRootHudCoordinates(settings);
+  const mode = args.hudLayout?.mode || "auto";
+  const windowSize =
+    mode === "manual"
+      ? args.hudLayout?.windowSize &&
+        parseWindowSize(
+          String(args.hudLayout.windowSize.width),
+          String(args.hudLayout.windowSize.height),
+        )
+      : { width: 1600, height: 1000 };
+  const source = decoded.metadata.hudViewport;
+  const validSource =
+    source &&
+    Number.isFinite(source.width) &&
+    Number.isFinite(source.height) &&
+    source.width > 0 &&
+    source.height > 0;
+  const canAdjust =
+    coordinates && mode !== "preserve" && !!validSource && !!windowSize;
+  let adjustedCount = 0;
+  const changes = settings.map((setting) => {
+    const current =
+      demoScan.settings.find(
+        (item) =>
+          item.source === setting.source && item.pointer === setting.pointer,
+      )?.value ?? null;
+    let incoming = setting.value;
+    if (
+      canAdjust &&
+      hasRootHudCoordinates([setting]) &&
+      typeof incoming === "number"
+    ) {
+      const axis = setting.pointer.endsWith("/x") ? "width" : "height";
+      incoming = (incoming * (windowSize![axis] / 2)) / source![axis];
+      if (incoming !== setting.value) adjustedCount += 1;
+    }
+    return {
+      id: setting.id,
+      label: `${setting.group ? `${setting.group} · ` : ""}${setting.label}`,
+      source: setting.source,
+      category: setting.category,
+      current,
+      incoming,
+      changed: JSON.stringify(current) !== JSON.stringify(incoming),
+    };
+  });
   return {
     fingerprint: "demo",
     targetFiles: demoScan.files
@@ -219,25 +285,25 @@ export function previewDemo(args: ImportArguments): ImportPreview {
         fileKind,
         path,
       })),
-    changes: decoded.settings
-      .filter((setting) => args.selectedIds.includes(setting.id))
-      .map((setting) => {
-        const current =
-          demoScan.settings.find(
-            (item) =>
-              item.source === setting.source &&
-              item.pointer === setting.pointer,
-          )?.value ?? null;
-        return {
-          id: setting.id,
-          label: `${setting.group ? `${setting.group} · ` : ""}${setting.label}`,
-          source: setting.source,
-          category: setting.category,
-          current,
-          incoming: setting.value,
-          changed: JSON.stringify(current) !== JSON.stringify(setting.value),
-        };
-      }),
+    changes,
+    ...(coordinates
+      ? {
+          hudLayout: {
+            status:
+              mode === "preserve"
+                ? "unchanged"
+                : !validSource
+                  ? "missing-source"
+                  : !windowSize
+                    ? "unavailable"
+                    : adjustedCount
+                      ? "adjusted"
+                      : "unchanged",
+            ...(mode !== "preserve" && windowSize ? { windowSize } : {}),
+            adjustedCount,
+          } as ImportPreview["hudLayout"],
+        }
+      : {}),
     warnings: ["サンプルの差分です。実際の設定ファイルにはアクセスしません。"],
     selectedCount: args.selectedIds.length,
   };

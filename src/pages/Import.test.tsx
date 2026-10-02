@@ -21,11 +21,13 @@ import type {
 } from "../models";
 import { I18nProvider } from "../i18n";
 import { Import } from "./Import";
+import { Export } from "./Export";
 
 const bridge = vi.hoisted(() => ({
   decode: vi.fn(),
   preview: vi.fn(),
   apply: vi.fn(),
+  encode: vi.fn(),
 }));
 
 vi.mock("../services/backend", () => ({ isDesktop: true, backend: bridge }));
@@ -175,6 +177,75 @@ async function choose(lunar: string) {
   });
 }
 
+async function changeSize(axis: "width" | "height", value: string) {
+  const input = container.querySelectorAll<HTMLInputElement>(
+    ".hud-size-fields input",
+  )[axis === "width" ? 0 : 1];
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      dom.window.HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(input, value);
+    input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+}
+
+async function prepareHud(
+  status: "adjusted" | "missing-source" | "unavailable" = "adjusted",
+) {
+  const decoded = envelope("windows", 80);
+  decoded.metadata.hudViewport = { width: 480, height: 270 };
+  decoded.settings.push(
+    {
+      ...setting("hud-x", "lunar", 200),
+      pointer: "/FPS/x",
+      label: "X",
+      category: "HUD",
+      group: "FPS",
+    },
+    {
+      ...setting("hud-y", "lunar", 81.89999999999999),
+      pointer: "/FPS/y",
+      label: "Y",
+      category: "HUD",
+      group: "FPS",
+    },
+  );
+  if (status === "missing-source") delete decoded.metadata.hudViewport;
+  bridge.decode.mockResolvedValue(decoded);
+  const ordinary = bridge.preview.getMockImplementation()!;
+  bridge.preview.mockImplementation(async (args: ImportArguments) => {
+    const result = (await ordinary(args)) as ImportPreview;
+    const preserve = args.hudLayout?.mode === "preserve";
+    const effectiveStatus = preserve
+      ? "unchanged"
+      : args.hudLayout?.mode === "manual"
+        ? "adjusted"
+        : status;
+    const adjusted = effectiveStatus === "adjusted";
+    result.hudLayout = {
+      status: effectiveStatus,
+      ...(adjusted
+        ? {
+            windowSize: args.hudLayout?.windowSize || {
+              width: 1920,
+              height: 1080,
+            },
+          }
+        : {}),
+      adjustedCount: adjusted ? 2 : 0,
+    };
+    result.changes = result.changes.map((change) =>
+      change.id.startsWith("hud-") && adjusted
+        ? { ...change, incoming: Number(change.incoming) * 2, changed: true }
+        : change,
+    );
+    return result;
+  });
+  await enter("windows-hud");
+  await choose("default");
+}
+
 beforeAll(async () => {
   dom = new JSDOM(
     "<!doctype html><main class='main-content'><div id='test-root'></div></main>",
@@ -300,6 +371,207 @@ afterAll(() => {
 });
 
 describe("desktop import destination and repeated imports", () => {
+  it("passes the configured source folders to HUD export encoding", async () => {
+    const request = {
+      minecraftRoot: "/fixture/game",
+      lunarRoot: "/fixture/lunar",
+    };
+    const hud = {
+      ...setting("local-x", "lunar", 200),
+      profile: "default",
+      pointer: "/FPS/x",
+    };
+    bridge.encode.mockResolvedValue({
+      code: "PRS3:synthetic",
+      compressedBytes: 100,
+      uncompressedBytes: 200,
+      settingCount: 1,
+    });
+    await act(async () =>
+      root.render(
+        <I18nProvider language="en">
+          <Export
+            scan={{ ...scan, activeLunarProfile: "default", settings: [hud] }}
+            request={request}
+            backups={[]}
+            onError={onError}
+            onNotice={onNotice}
+            navigate={navigate}
+            onRefresh={onRefresh}
+            onCreated={vi.fn()}
+          />
+        </I18nProvider>,
+      ),
+    );
+    await click("Review preview");
+    expect(bridge.encode).toHaveBeenCalledWith(
+      [hud],
+      { platform: "macos", minecraftVersion: undefined },
+      request,
+    );
+  });
+  it("defaults HUD adjustment on and confirms the measured window and adjusted values before applying", async () => {
+    await prepareHud();
+    expect(
+      container.querySelector<HTMLInputElement>(
+        ".hud-layout-controls input[type=checkbox]",
+      )!.checked,
+    ).toBe(true);
+    expect(container.querySelector(".hud-size-fields")).toBeNull();
+    await click("Preview differences");
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "auto" } }),
+    );
+    expect(
+      container.querySelector(".hud-layout-summary")!.textContent,
+    ).toContain("1920 × 1080 px");
+    expect(
+      container.querySelector(".hud-layout-summary")!.textContent,
+    ).toContain("Adjusted 2 positions");
+    const row = [...container.querySelectorAll(".diff-row")].find(
+      (item) => item.querySelector("strong")?.textContent === "X",
+    )!;
+    expect(row.querySelectorAll("code")[1].textContent).toBe("400");
+    const y = [...container.querySelectorAll(".diff-row")]
+      .find((item) => item.querySelector("strong")?.textContent === "Y")!
+      .querySelectorAll("code")[1];
+    expect(y.textContent).toBe("163.8");
+    expect(y.title).toBe("163.79999999999998");
+    const exact = (await bridge.preview.mock.results[0].value) as ImportPreview;
+    expect(
+      exact.changes.find((change) => change.id === "hud-y")!.incoming,
+    ).toBe(163.79999999999998);
+    await click("Apply selected settings");
+    expect(
+      container.querySelector("dialog .hud-layout-summary")!.textContent,
+    ).toContain("1920 × 1080 px");
+    await click("Back up and apply");
+    expect(bridge.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "auto" } }),
+      expect.any(String),
+      false,
+    );
+  });
+  it("keeps exact HUD coordinate display when importing the original positions", async () => {
+    await prepareHud();
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>(
+          ".hud-layout-controls input[type=checkbox]",
+        )!
+        .click(),
+    );
+    await click("Preview differences");
+    const y = [...container.querySelectorAll(".diff-row")]
+      .find((item) => item.querySelector("strong")?.textContent === "Y")!
+      .querySelectorAll("code")[1];
+    expect(y.textContent).toBe("81.89999999999999");
+    expect(y.title).toBe("81.89999999999999");
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "preserve" } }),
+    );
+  });
+  it("blocks legacy HUD scaling, then requires a new preview when keeping the original values", async () => {
+    await prepareHud("missing-source");
+    await click("Preview differences");
+    expect(button("Apply selected settings").disabled).toBe(true);
+    expect(container.textContent).toContain(
+      "Create a new code on the source device",
+    );
+    const first = (await bridge.preview.mock.results[0].value) as ImportPreview;
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>(
+          ".hud-layout-controls input[type=checkbox]",
+        )!
+        .click(),
+    );
+    expect(container.querySelector(".diff-panel")).toBeNull();
+    await click("Preview differences");
+    const fresh = (await bridge.preview.mock.results[1].value) as ImportPreview;
+    expect(fresh.fingerprint).not.toBe(first.fingerprint);
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "preserve" } }),
+    );
+    await click("Apply selected settings");
+    await click("Back up and apply");
+    expect(bridge.apply).toHaveBeenCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "preserve" } }),
+      fresh.fingerprint,
+      false,
+    );
+  });
+  it("keeps manual inputs available after detection fails and binds a fresh preview to valid physical dimensions", async () => {
+    await prepareHud("unavailable");
+    await click("Preview differences");
+    const old = (await bridge.preview.mock.results[0].value) as ImportPreview;
+    expect(button("Apply selected settings").disabled).toBe(true);
+    expect(button("Preview differences").disabled).toBe(true);
+    await changeSize("width", "319");
+    expect(container.querySelector(".diff-panel")).toBeNull();
+    await changeSize("height", "1080");
+    expect(button("Preview differences").disabled).toBe(true);
+    await changeSize("width", "1920");
+    await click("Preview differences");
+    const fresh = (await bridge.preview.mock.results[1].value) as ImportPreview;
+    expect(fresh.fingerprint).not.toBe(old.fingerprint);
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        hudLayout: {
+          mode: "manual",
+          windowSize: { width: 1920, height: 1080 },
+        },
+      }),
+    );
+    await click("Apply selected settings");
+    await click("Back up and apply");
+    expect(bridge.apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hudLayout: {
+          mode: "manual",
+          windowSize: { width: 1920, height: 1080 },
+        },
+      }),
+      fresh.fingerprint,
+      false,
+    );
+  });
+  it("discards an in-flight adjusted preview after the user changes the HUD mode", async () => {
+    await prepareHud();
+    const original = bridge.preview.getMockImplementation()!;
+    let complete!: (value: ImportPreview) => void;
+    bridge.preview.mockImplementationOnce(
+      () =>
+        new Promise<ImportPreview>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    await click("Preview differences");
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>(
+          ".hud-layout-controls input[type=checkbox]",
+        )!
+        .click(),
+    );
+    await act(async () =>
+      complete(
+        await original({
+          code: "windows-hud",
+          selectedIds: ["windows-fov", "windows-fps", "hud-x", "hud-y"],
+          target: { minecraftProfile: "Minecraft", lunarProfile: "default" },
+          request: {},
+          hudLayout: { mode: "auto" },
+        }),
+      ),
+    );
+    expect(container.querySelector(".diff-panel")).toBeNull();
+    expect(bridge.apply).not.toHaveBeenCalled();
+    await click("Preview differences");
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hudLayout: { mode: "preserve" } }),
+    );
+  });
   it("starts with the active Lunar preset and keeps the user's different choice across scans", async () => {
     currentScan = { ...scan, activeLunarProfile: "my-game-profile" };
     await act(async () => render());

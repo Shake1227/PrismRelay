@@ -207,6 +207,7 @@ fn main() {
     ];
     for (name, settings) in fixtures {
         let metadata = ShareMetadata {
+            hud_viewport: None,
             minecraft_version: Some("1.21.4".to_string()),
             lunar_version: None,
             platform: "windows".to_string(),

@@ -22,12 +22,18 @@ import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
 import { ImportDestinations } from "../components/ImportDestinations";
 import { CrystalCompletion } from "../components/CrystalCompletion";
+import { HudLayoutControls, HudLayoutSummary } from "../components/HudLayout";
 import type { ImportDestinationFile } from "../components/ImportDestinations";
 import { QrReader } from "../components/QrReader";
 import { Modal } from "../components/Modal";
 import { formatDate, formatValue } from "../utils/format";
 import { reconcileImportProfiles } from "../utils/profiles";
 import { createRequestGuard } from "../utils/requestGuard";
+import {
+  formatHudCoordinate,
+  hasRootHudCoordinates,
+  parseWindowSize,
+} from "../utils/hud";
 import type { WorkspaceProps } from "./types";
 export function Import({
   scan,
@@ -49,6 +55,10 @@ export function Import({
   const [confirm, setConfirm] = useState(false);
   const [readingQr, setReadingQr] = useState(false);
   const [done, setDone] = useState(false);
+  const [autoHud, setAutoHud] = useState(true);
+  const [manualFallback, setManualFallback] = useState(false);
+  const [manualWidth, setManualWidth] = useState("");
+  const [manualHeight, setManualHeight] = useState("");
   const [appliedCount, setAppliedCount] = useState(0);
   const [appliedTargets, setAppliedTargets] = useState<ImportDestinationFile[]>(
     [],
@@ -56,6 +66,7 @@ export function Import({
   const previewGuard = useRef(createRequestGuard());
   const fileInput = useRef<HTMLInputElement>(null);
   const previewPanel = useRef<HTMLElement>(null);
+  const hudPanel = useRef<HTMLDivElement>(null);
   const donePanel = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (!done) return;
@@ -67,7 +78,10 @@ export function Import({
   useEffect(() => {
     if (!preview) return;
     const frame = window.requestAnimationFrame(() => {
-      const panel = previewPanel.current;
+      const panel =
+        preview.hudLayout?.status === "unavailable"
+          ? hudPanel.current
+          : previewPanel.current;
       const scroller = panel?.closest<HTMLElement>(".main-content");
       if (!panel || !scroller) return;
       const header = scroller.querySelector<HTMLElement>(".page-header");
@@ -94,6 +108,10 @@ export function Import({
     setPreview(null);
     setConfirm(false);
     setDone(false);
+    setAutoHud(true);
+    setManualFallback(false);
+    setManualWidth("");
+    setManualHeight("");
     setBusy(false);
     if (!code.trim()) return;
     let cancelled = false;
@@ -125,14 +143,45 @@ export function Import({
     setConfirm(false);
     setProfiles((current) => reconcileImportProfiles(scan, current));
   }, [scan, request]);
+  const selectedSettings =
+    decoded?.settings.filter((setting) => selected.has(setting.id)) || [];
+  const hasHud = hasRootHudCoordinates(selectedSettings);
+  const manualSize = parseWindowSize(manualWidth, manualHeight);
+  const manualInvalid = hasHud && autoHud && manualFallback && !manualSize;
   const args: ImportArguments = {
     code: code.trim(),
     selectedIds: [...selected],
     target: profiles,
     request,
+    ...(hasHud
+      ? {
+          hudLayout: !autoHud
+            ? { mode: "preserve" }
+            : manualFallback && manualSize
+              ? { mode: "manual", windowSize: manualSize }
+              : { mode: "auto" },
+        }
+      : {}),
   };
-  const selectedSettings =
-    decoded?.settings.filter((setting) => selected.has(setting.id)) || [];
+  const hudBlocked =
+    hasHud &&
+    autoHud &&
+    (preview?.hudLayout?.status === "missing-source" ||
+      preview?.hudLayout?.status === "unavailable");
+  const formattedHudIds = new Set(
+    autoHud &&
+      (preview?.hudLayout?.status === "adjusted" ||
+        preview?.hudLayout?.status === "unchanged")
+      ? selectedSettings
+          .filter((setting) => hasRootHudCoordinates([setting]))
+          .map((setting) => setting.id)
+      : [],
+  );
+  const invalidateHudPreview = () => {
+    previewGuard.current.invalidate();
+    setPreview(null);
+    setConfirm(false);
+  };
   const ambiguousShare = ["minecraft", "lunar"].some(
     (source) =>
       new Set(
@@ -150,12 +199,17 @@ export function Import({
       : !profiles.lunarProfile,
   );
   const makePreview = async () => {
-    if (ambiguousShare || missingTarget || !selected.size) return;
+    if (ambiguousShare || missingTarget || !selected.size || manualInvalid)
+      return;
     const isCurrent = previewGuard.current.begin();
     setBusy(true);
     try {
       const result = await backend.preview(args);
-      if (isCurrent()) setPreview(result);
+      if (isCurrent()) {
+        setPreview(result);
+        if (autoHud && result.hudLayout?.status === "unavailable")
+          setManualFallback(true);
+      }
     } catch (error) {
       if (isCurrent()) onError(error);
     } finally {
@@ -163,7 +217,7 @@ export function Import({
     }
   };
   const apply = async (allowRunning: boolean) => {
-    if (!preview) return;
+    if (!preview || hudBlocked || manualInvalid) return;
     setBusy(true);
     try {
       const backup = await backend.apply(
@@ -228,6 +282,8 @@ export function Import({
               "demo-mc-0",
               "demo-mc-1",
               "demo-lunar-0-enabled",
+              "demo-hud-x",
+              "demo-hud-y",
               "demo-mod-0",
             ].includes(setting.id),
           )
@@ -320,7 +376,7 @@ export function Import({
           spellCheck={false}
           placeholder={
             isDesktop
-              ? t("PRS1: または PRS2: で始まる共有コードをここに…")
+              ? t("PRS1:、PRS2:、PRS3: で始まる共有コードをここに…")
               : t("サンプルコードをここに…")
           }
           aria-label={t("読み込む共有コード")}
@@ -403,6 +459,40 @@ export function Import({
                   }}
                 />
               )}
+              {hasHud && (
+                <div ref={hudPanel}>
+                  <HudLayoutControls
+                    enabled={autoHud}
+                    onEnabledChange={(enabled) => {
+                      invalidateHudPreview();
+                      setAutoHud(enabled);
+                      setManualFallback(false);
+                      setManualWidth("");
+                      setManualHeight("");
+                    }}
+                    manual={
+                      manualFallback
+                        ? {
+                            width: manualWidth,
+                            height: manualHeight,
+                            valid: !!manualSize,
+                            onChange: (width, height) => {
+                              invalidateHudPreview();
+                              setManualWidth(width);
+                              setManualHeight(height);
+                            },
+                          }
+                        : undefined
+                    }
+                    onAutomatic={() => {
+                      invalidateHudPreview();
+                      setManualFallback(false);
+                      setManualWidth("");
+                      setManualHeight("");
+                    }}
+                  />
+                </div>
+              )}
               <TreePicker
                 settings={decoded.settings}
                 applicationIcons={scan.applicationIcons}
@@ -427,7 +517,9 @@ export function Import({
                 </span>
                 <button
                   className="button primary"
-                  disabled={!selected.size || missingTarget || busy}
+                  disabled={
+                    !selected.size || missingTarget || busy || manualInvalid
+                  }
                   onClick={() => void makePreview()}
                 >
                   {t("差分をプレビュー")}
@@ -456,6 +548,7 @@ export function Import({
                 </label>
               </div>
               <ImportDestinations files={preview.targetFiles} />
+              <HudLayoutSummary layout={preview.hudLayout} />
               {preview.warnings.map((warning, index) => (
                 <div className="inline-warning" key={index}>
                   {t(warning)}
@@ -487,10 +580,14 @@ export function Import({
                         </small>
                       </div>
                       <code title={formatValue(change.current)}>
-                        {formatValue(change.current)}
+                        {formattedHudIds.has(change.id)
+                          ? formatHudCoordinate(change.current)
+                          : formatValue(change.current)}
                       </code>
                       <code title={formatValue(change.incoming)}>
-                        {formatValue(change.incoming)}
+                        {formattedHudIds.has(change.id)
+                          ? formatHudCoordinate(change.incoming)
+                          : formatValue(change.incoming)}
                       </code>
                     </div>
                   ))}
@@ -511,7 +608,10 @@ export function Import({
                 <button
                   className="button primary"
                   disabled={
-                    busy || preview.changes.every((change) => !change.changed)
+                    busy ||
+                    hudBlocked ||
+                    manualInvalid ||
+                    preview.changes.every((change) => !change.changed)
                   }
                   onClick={() => setConfirm(true)}
                 >
@@ -564,6 +664,7 @@ export function Import({
                 )}
           </p>
           <ImportDestinations files={preview?.targetFiles || []} />
+          <HudLayoutSummary layout={preview?.hudLayout} />
           {!isDesktop && (
             <p className="inline-warning">
               {t("サンプルの確認です。実際の設定ファイルは変更しません。")}

@@ -786,6 +786,7 @@ mod tests {
             let code = crate::codec::encode(
                 settings,
                 crate::codec::ShareMetadata {
+                    hud_viewport: None,
                     minecraft_version: Some("1.21.11".into()),
                     lunar_version: None,
                     platform: "Windows".into(),

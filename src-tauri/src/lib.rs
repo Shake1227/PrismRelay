@@ -1,6 +1,8 @@
 pub mod backup;
 pub mod codec;
+pub mod display;
 mod game_processes;
+pub mod hud;
 mod icons;
 pub mod importer;
 pub mod lunar;
@@ -13,11 +15,47 @@ mod updates;
 
 use backup::{BackupManifest, BackupStore};
 use codec::{EncodingResult, ShareEnvelope, ShareMetadata};
-use importer::{ImportPreview, ImportTarget};
+use importer::{HudLayoutContext, HudLayoutMode, HudLayoutRequest, ImportPreview, ImportTarget};
 use model::{ScanReport, ScanRequest, Setting};
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{Manager, State};
+
+fn hud_window(size: display::PixelSize, scale_factor: f64) -> Option<hud::HudWindow> {
+    if !scale_factor.is_finite() || !(0.5..=8.0).contains(&scale_factor) {
+        return None;
+    }
+    Some(hud::HudWindow {
+        physical_width: size.width,
+        physical_height: size.height,
+        logical_height: if cfg!(target_os = "macos") {
+            (f64::from(size.height) / scale_factor).round() as u32
+        } else {
+            size.height
+        },
+        macos: cfg!(target_os = "macos"),
+    })
+}
+
+fn hud_layout_context(
+    window: &tauri::WebviewWindow,
+    layout: &HudLayoutRequest,
+) -> HudLayoutContext {
+    let resolved = match layout.mode {
+        HudLayoutMode::Preserve => return HudLayoutContext::default(),
+        HudLayoutMode::Auto => display::measure_maximized(window)
+            .ok()
+            .map(|display| (display.client_physical, display.scale_factor)),
+        HudLayoutMode::Manual => layout.window_size.zip(window.scale_factor().ok()),
+    };
+    match resolved {
+        Some((size, scale)) => HudLayoutContext {
+            window_size: Some(size),
+            window: hud_window(size, scale),
+        },
+        None => HudLayoutContext::default(),
+    }
+}
 
 #[derive(Clone)]
 struct AppState {
@@ -83,9 +121,34 @@ async fn scan_configuration(
 #[tauri::command]
 async fn encode_share(
     settings: Vec<Setting>,
-    metadata: ShareMetadata,
+    mut metadata: ShareMetadata,
+    request: Option<ScanRequest>,
+    window: tauri::WebviewWindow,
 ) -> Result<EncodingResult, String> {
-    blocking(move || codec::encode(settings, metadata)).await
+    blocking(move || {
+        metadata.hud_viewport = None;
+        let profiles: std::collections::BTreeSet<_> = settings
+            .iter()
+            .filter(|setting| hud::is_adaptable_coordinate(setting))
+            .map(|setting| setting.profile.as_str())
+            .collect();
+        if profiles.len() > 1 {
+            return Err("Select one Lunar profile before sharing HUD positions.".into());
+        }
+        if let Some(setting) = settings
+            .iter()
+            .find(|setting| hud::is_adaptable_coordinate(setting))
+        {
+            let report = scanner::scan(request.unwrap_or_default())?;
+            let context = hud_layout_context(&window, &HudLayoutRequest::default());
+            metadata.hud_viewport = context
+                .window
+                .as_ref()
+                .and_then(|window| hud::viewport(&report, &setting.profile, window, &[]).ok());
+        }
+        codec::encode(settings, metadata)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -99,11 +162,20 @@ async fn preview_import(
     selected_ids: Vec<String>,
     target: ImportTarget,
     request: ScanRequest,
+    hud_layout: Option<HudLayoutRequest>,
+    window: tauri::WebviewWindow,
 ) -> Result<ImportPreview, String> {
-    blocking(move || importer::preview(&code, &selected_ids, &target, &request)).await
+    blocking(move || {
+        let layout = hud_layout.unwrap_or_default();
+        layout.validate()?;
+        let context = hud_layout_context(&window, &layout);
+        importer::preview_with_layout(&code, &selected_ids, &target, &request, &layout, &context)
+    })
+    .await
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn apply_import(
     code: String,
     selected_ids: Vec<String>,
@@ -111,13 +183,18 @@ async fn apply_import(
     request: ScanRequest,
     allow_running: bool,
     preview_fingerprint: String,
+    hud_layout: Option<HudLayoutRequest>,
+    window: tauri::WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<BackupManifest, String> {
     let store = state.store.clone();
     blocking(move || {
         let _lock = store.lock()?;
         store.recover()?;
-        let result = importer::apply(
+        let layout = hud_layout.unwrap_or_default();
+        layout.validate()?;
+        let context = hud_layout_context(&window, &layout);
+        let result = importer::apply_with_layout(
             &store,
             &code,
             &selected_ids,
@@ -125,6 +202,8 @@ async fn apply_import(
             &request,
             allow_running,
             &preview_fingerprint,
+            &layout,
+            &context,
         );
         diagnostic(&store, "import", result.is_ok());
         result

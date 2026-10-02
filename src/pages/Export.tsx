@@ -48,6 +48,7 @@ function loadPresets(): SavedPreset[] {
 }
 export function Export({
   scan,
+  request,
   onError,
   onNotice,
   onCreated,
@@ -125,10 +126,14 @@ export function Export({
     const isCurrent = previewGuard.current.begin();
     setBusy(true);
     try {
-      const result = await backend.encode(selectedSettings, {
-        minecraftVersion: minecraftVersion(scan, profiles.minecraftProfile),
-        platform: scan.platform.toLowerCase(),
-      });
+      const result = await backend.encode(
+        selectedSettings,
+        {
+          minecraftVersion: minecraftVersion(scan, profiles.minecraftProfile),
+          platform: scan.platform.toLowerCase(),
+        },
+        request,
+      );
       if (isCurrent()) {
         setEncoded(result);
         setCreated(false);

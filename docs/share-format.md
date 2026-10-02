@@ -1,6 +1,6 @@
 # Prism Relay share format
 
-Prism Relay exports self-contained `PRS2:` codes. Existing `PRS1:` codes still decode. No account, upload service, or database is required. A `.prism` file contains the same UTF-8 code shown in the app.
+Prism Relay exports self-contained `PRS3:` codes when verified Lunar HUD coordinates include a source viewport. Other selections use the shorter `PRS2:` format. Existing `PRS1:` and `PRS2:` codes still decode. No account, upload service, or database is required. A `.prism` file contains the same UTF-8 code shown in the app.
 
 The compact format keeps setting values unchanged. Minecraft values keep their original strings, including numeric formatting such as `0.50`. Lunar values keep their scalar JSON types, integer colors, and floating-point values.
 
@@ -54,6 +54,20 @@ A positive prefix length references that many bytes of the previous expanded poi
 
 The public `ShareEnvelope` still exposes full pointers, source names, anonymous profiles, RFC 3339 creation time, and string platform names. Labels and categories are regenerated from approved pointers. Local IDs, display labels, directory names, paths, and original profile names are absent from both wire formats.
 
+## Version 3 HUD metadata
+
+PRS3 uses the same Brotli compression, complete SHA-256 framing, grouped setting records, and frozen pointer dictionary as PRS2. Its array adds one field:
+
+```text
+PRS3:base64url(sha256(compressed_payload) || compressed_payload)
+[3, timestamp, applicationVersion, minecraftVersion, lunarVersion, platform, groups, hudViewport]
+hudViewport = [width, height] | nil
+```
+
+Width and height are finite effective HUD coordinates from 16 to 32,768. They describe the maximized standard window client area after Minecraft GUI scale and Lunar/Retina scaling. They contain no monitor name, display identifier, or filesystem path. The native exporter measures them locally rather than trusting caller-provided metadata. If the source viewport cannot be verified, it exports PRS2 with exact coordinate values and no size metadata. A selection with one source viewport can contain verified root HUD coordinates from only one Lunar profile.
+
+The decoder requires exactly eight fields and rejects inconsistent prefix/version pairs. HUD metadata is validated before presentation. Import preserves the wire values and applies viewport ratios only to selected, verified root `x`/`y` coordinates during planning; the adjusted values appear in the diff before application. Codes without source geometry retain an explicit option to import exact offsets. See [the HUD schema notes](lunar-schema.md#hud-layout-adaptation-in-103) for supported components and scale semantics.
+
 ## Version 1 compatibility
 
 Legacy codes keep their original Zstandard level 3 pipeline:
@@ -65,7 +79,7 @@ metadata = [minecraftVersion, lunarVersion, platform]
 setting = [source, fileKind, profile, pointer, value]
 ```
 
-The prefix selects the decoder and the payload must contain the matching version. Existing codes can be imported without conversion. Re-exporting uses PRS2. Unknown prefixes and versions are rejected.
+The prefix selects the decoder and the payload must contain the matching version. Existing codes can be imported without conversion. Re-exporting uses PRS2 or PRS3 according to the selected HUD metadata. Unknown prefixes and versions are rejected.
 
 IDs are regenerated with SHA-256 over four UTF-8 components: source, file kind, anonymous profile, and full pointer. Each component is preceded by its byte length as an unsigned 32-bit little-endian integer. Import maps approved pointers to an explicitly selected local target profile; shared profiles never become filesystem paths.
 
@@ -73,7 +87,7 @@ The application version is a bounded version string starting with a digit. Game 
 
 ## Limits and privacy
 
-| Limit | Both versions |
+| Limit | All versions |
 | --- | ---: |
 | Share-code input | 2 MiB |
 | Decompressed payload | 8 MiB |
@@ -85,9 +99,9 @@ The application version is a bounded version string starting with a digit. Game 
 
 The decoder bounds input before Base64 allocation. Zstandard uses an explicit window limit. Brotli's window header is checked before allocating the decoder; windows above 8 MiB and extended large-window headers are rejected. Brotli output is read in bounded chunks and stops when the 8 MiB output limit would be exceeded. The cumulative setting count is checked while reading groups.
 
-Both formats accept only bounded scalar values. Nested arrays and objects are rejected before allocating their contents. The decoder rejects malformed Base64, checksum failures, invalid MessagePack, trailing uncompressed bytes, duplicate records or groups, invalid profile and dictionary indices, invalid prefix boundaries, and unapproved settings. PRS2 also rejects trailing compressed bytes. A valid checksum does not bypass limits or the allowlist.
+All formats accept only bounded scalar setting values. Nested arrays and objects are rejected before allocating their contents. The decoder rejects malformed Base64, checksum failures, invalid MessagePack, trailing uncompressed bytes, duplicate records or groups, invalid profile and dictionary indices, invalid prefix boundaries, and unapproved settings. PRS2 and PRS3 also reject trailing compressed bytes. A valid checksum does not bypass limits or the allowlist.
 
-Codes contain selected settings and version/platform metadata. Account files, authentication fields, tokens, server addresses, paths, logs, and unknown fields are excluded. Approved Resource Pack identifiers can include custom pack filenames; deselect that category if those names should remain private. Codes are not encrypted.
+Codes contain selected settings, version/platform metadata, and optional HUD viewport dimensions. Account files, authentication fields, tokens, server addresses, paths, logs, and unknown fields are excluded. Approved Resource Pack identifiers can include custom pack filenames; deselect that category if those names should remain private. Codes are not encrypted.
 
 ## Discord sharing
 

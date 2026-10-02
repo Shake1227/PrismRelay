@@ -1,3 +1,4 @@
+use crate::hud::HudViewport;
 use crate::model::Setting;
 use crate::safety::canonicalize_setting;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -12,7 +13,8 @@ use std::fmt;
 use std::io::{Cursor, Read};
 use std::marker::PhantomData;
 
-pub const PREFIX: &str = "PRS2:";
+pub const PREFIX: &str = "PRS3:";
+pub const COMPACT_PREFIX: &str = "PRS2:";
 pub const LEGACY_PREFIX: &str = "PRS1:";
 pub const MAX_CODE_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_UNCOMPRESSED_BYTES: usize = 8 * 1024 * 1024;
@@ -642,6 +644,8 @@ pub struct ShareMetadata {
     pub minecraft_version: Option<String>,
     pub lunar_version: Option<String>,
     pub platform: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hud_viewport: Option<HudViewport>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -669,9 +673,17 @@ struct WireEnvelope {
     format_version: u32,
     created_at: String,
     application_version: String,
-    metadata: ShareMetadata,
+    metadata: WireMetadata,
     #[serde(deserialize_with = "deserialize_list")]
     settings: Vec<WireSetting>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WireMetadata {
+    minecraft_version: Option<String>,
+    lunar_version: Option<String>,
+    platform: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -696,6 +708,97 @@ struct CompactEnvelope {
     platform: u8,
     #[serde(deserialize_with = "deserialize_groups")]
     groups: Vec<CompactGroup>,
+}
+
+#[derive(Clone, Debug)]
+struct CompactHudEnvelope {
+    compact: CompactEnvelope,
+    hud_viewport: Option<HudViewport>,
+}
+
+impl Serialize for CompactHudEnvelope {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut sequence = serializer.serialize_seq(Some(8))?;
+        sequence.serialize_element(&self.compact.format_version)?;
+        sequence.serialize_element(&self.compact.timestamp)?;
+        sequence.serialize_element(&self.compact.application_version)?;
+        sequence.serialize_element(&self.compact.minecraft_version)?;
+        sequence.serialize_element(&self.compact.lunar_version)?;
+        sequence.serialize_element(&self.compact.platform)?;
+        sequence.serialize_element(&self.compact.groups)?;
+        sequence.serialize_element(
+            &self
+                .hud_viewport
+                .as_ref()
+                .map(|viewport| (viewport.width, viewport.height)),
+        )?;
+        sequence.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for CompactHudEnvelope {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Groups(Vec<CompactGroup>);
+        impl<'de> Deserialize<'de> for Groups {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                deserialize_groups(deserializer).map(Self)
+            }
+        }
+        struct HudVisitor;
+        impl<'de> Visitor<'de> for HudVisitor {
+            type Value = CompactHudEnvelope;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("an eight-field share envelope")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(
+                self,
+                mut sequence: A,
+            ) -> Result<Self::Value, A::Error> {
+                let format_version = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let timestamp = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let application_version = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let minecraft_version = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let lunar_version = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let platform = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+                let Groups(groups) = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(6, &self))?;
+                let viewport: Option<(f64, f64)> = sequence
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(7, &self))?;
+                if sequence.next_element::<de::IgnoredAny>()?.is_some() {
+                    return Err(de::Error::invalid_length(9, &self));
+                }
+                Ok(CompactHudEnvelope {
+                    compact: CompactEnvelope {
+                        format_version,
+                        timestamp,
+                        application_version,
+                        minecraft_version,
+                        lunar_version,
+                        platform,
+                        groups,
+                    },
+                    hud_viewport: viewport.map(|(width, height)| HudViewport { width, height }),
+                })
+            }
+        }
+        deserializer.deserialize_tuple(8, HudVisitor)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -955,7 +1058,11 @@ impl From<&ShareEnvelope> for WireEnvelope {
             format_version: envelope.format_version,
             created_at: envelope.created_at.clone(),
             application_version: envelope.application_version.clone(),
-            metadata: envelope.metadata.clone(),
+            metadata: WireMetadata {
+                minecraft_version: envelope.metadata.minecraft_version.clone(),
+                lunar_version: envelope.metadata.lunar_version.clone(),
+                platform: envelope.metadata.platform.clone(),
+            },
             settings: envelope
                 .settings
                 .iter()
@@ -977,7 +1084,12 @@ impl From<WireEnvelope> for ShareEnvelope {
             format_version: envelope.format_version,
             created_at: envelope.created_at,
             application_version: envelope.application_version,
-            metadata: envelope.metadata,
+            metadata: ShareMetadata {
+                minecraft_version: envelope.metadata.minecraft_version,
+                lunar_version: envelope.metadata.lunar_version,
+                platform: envelope.metadata.platform,
+                hud_viewport: None,
+            },
             settings: envelope
                 .settings
                 .into_iter()
@@ -1117,6 +1229,7 @@ impl TryFrom<CompactEnvelope> for ShareEnvelope {
                 minecraft_version: envelope.minecraft_version,
                 lunar_version: envelope.lunar_version,
                 platform,
+                hud_viewport: None,
             },
             settings,
         })
@@ -1167,8 +1280,13 @@ pub fn encode(
         .map_err(|_| UNSAFE_SETTINGS.to_string())?;
     validate_metadata(&metadata).map_err(|_| UNSAFE_SETTINGS.to_string())?;
     let settings = prepare_settings(settings)?;
+    validate_hud_profiles(&settings, &metadata)?;
     let envelope = ShareEnvelope {
-        format_version: 2,
+        format_version: if metadata.hud_viewport.is_some() {
+            3
+        } else {
+            2
+        },
         created_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         application_version: env!("CARGO_PKG_VERSION").to_string(),
         metadata,
@@ -1227,14 +1345,29 @@ fn prepare_settings(settings: Vec<Setting>) -> Result<Vec<Setting>, String> {
 
 fn encode_envelope(envelope: &ShareEnvelope) -> Result<EncodingResult, String> {
     let compact = CompactEnvelope::try_from(envelope)?;
-    let dictionary = serialize_compact(&dictionary_pointers(compact.clone()))?;
-    let plain = serialize_compact(&compact)?;
-    let prefixed = serialize_compact(&prefix_pointers(compact))?;
+    let serialize = |compact: &CompactEnvelope| {
+        if envelope.format_version == 2 {
+            serialize_compact(compact)
+        } else {
+            serialize_compact(&CompactHudEnvelope {
+                compact: compact.clone(),
+                hud_viewport: envelope.metadata.hud_viewport.clone(),
+            })
+        }
+    };
+    let dictionary = serialize(&dictionary_pointers(compact.clone()))?;
+    let plain = serialize(&compact)?;
+    let prefixed = serialize(&prefix_pointers(compact))?;
     let (serialized, compressed) = [dictionary, plain, prefixed]
         .into_iter()
         .min_by_key(|(_, compressed)| compressed.len())
         .unwrap();
-    let code = frame_payload(PREFIX, &compressed);
+    let prefix = if envelope.format_version == 2 {
+        COMPACT_PREFIX
+    } else {
+        PREFIX
+    };
+    let code = frame_payload(prefix, &compressed);
     if code.len() > MAX_CODE_BYTES {
         return Err("This selection is too large for a share code.".to_string());
     }
@@ -1246,7 +1379,7 @@ fn encode_envelope(envelope: &ShareEnvelope) -> Result<EncodingResult, String> {
     })
 }
 
-fn serialize_compact(envelope: &CompactEnvelope) -> Result<(Vec<u8>, Vec<u8>), String> {
+fn serialize_compact<T: Serialize>(envelope: &T) -> Result<(Vec<u8>, Vec<u8>), String> {
     let serialized = rmp_serde::to_vec(envelope)
         .map_err(|_| "These settings could not be encoded.".to_string())?;
     if serialized.len() > MAX_UNCOMPRESSED_BYTES {
@@ -1311,6 +1444,8 @@ fn decode_checked(code: &str) -> Result<ShareEnvelope, ()> {
     }
     let code = code.trim();
     let (version, encoded) = if let Some(encoded) = code.strip_prefix(PREFIX) {
+        (3, encoded)
+    } else if let Some(encoded) = code.strip_prefix(COMPACT_PREFIX) {
         (2, encoded)
     } else if let Some(encoded) = code.strip_prefix(LEGACY_PREFIX) {
         (1, encoded)
@@ -1351,8 +1486,13 @@ fn decode_checked(code: &str) -> Result<ShareEnvelope, ()> {
     deserializer.set_max_depth(32);
     let envelope = if version == 1 {
         ShareEnvelope::from(WireEnvelope::deserialize(&mut deserializer).map_err(|_| ())?)
-    } else {
+    } else if version == 2 {
         ShareEnvelope::try_from(CompactEnvelope::deserialize(&mut deserializer).map_err(|_| ())?)?
+    } else {
+        let envelope = CompactHudEnvelope::deserialize(&mut deserializer).map_err(|_| ())?;
+        let mut decoded = ShareEnvelope::try_from(envelope.compact)?;
+        decoded.metadata.hud_viewport = envelope.hud_viewport;
+        decoded
     };
     if deserializer.position() != serialized.len() as u64 {
         return Err(());
@@ -1449,6 +1589,7 @@ fn validate_envelope(mut envelope: ShareEnvelope, version: u32) -> Result<ShareE
     envelope
         .settings
         .sort_by(|left, right| left.id.cmp(&right.id));
+    validate_hud_profiles(&envelope.settings, &envelope.metadata).map_err(|_| ())?;
     Ok(envelope)
 }
 
@@ -1464,6 +1605,24 @@ fn validate_metadata(metadata: &ShareMetadata) -> Result<(), ()> {
             .is_some_and(|version| !valid_game_version(version))
     {
         return Err(());
+    }
+    if let Some(viewport) = &metadata.hud_viewport {
+        viewport.validate().map_err(|_| ())?;
+    }
+    Ok(())
+}
+
+fn validate_hud_profiles(settings: &[Setting], metadata: &ShareMetadata) -> Result<(), String> {
+    if metadata.hud_viewport.is_some()
+        && settings
+            .iter()
+            .filter(|setting| crate::hud::is_adaptable_coordinate(setting))
+            .map(|setting| setting.profile.as_str())
+            .collect::<BTreeSet<_>>()
+            .len()
+            > 1
+    {
+        return Err("Select one Lunar profile before sharing HUD positions.".into());
     }
     Ok(())
 }
@@ -1638,6 +1797,7 @@ mod tests {
             minecraft_version: Some("1.21.4".to_string()),
             lunar_version: None,
             platform: "macos".to_string(),
+            hud_viewport: None,
         }
     }
 
@@ -1653,13 +1813,13 @@ mod tests {
 
     fn compact_code(envelope: &CompactEnvelope) -> String {
         let serialized = rmp_serde::to_vec(envelope).unwrap();
-        frame_payload(PREFIX, &compress_compact(&serialized).unwrap())
+        frame_payload(COMPACT_PREFIX, &compress_compact(&serialized).unwrap())
     }
 
     #[test]
     fn round_trip_preserves_safe_settings_and_removes_local_identity() {
         let result = encode(vec![fixture()], metadata()).unwrap();
-        assert!(result.code.starts_with(PREFIX));
+        assert!(result.code.starts_with(COMPACT_PREFIX));
         assert_eq!(result.setting_count, 1);
         let decoded = decode(&result.code).unwrap();
         assert_eq!(decoded.settings[0].value, json!("0.5"));
@@ -1674,10 +1834,14 @@ mod tests {
     fn malformed_checksum_and_invalid_base64_are_rejected() {
         let result = encode(vec![fixture()], metadata()).unwrap();
         let mut bytes = URL_SAFE_NO_PAD
-            .decode(result.code.strip_prefix(PREFIX).unwrap())
+            .decode(result.code.strip_prefix(COMPACT_PREFIX).unwrap())
             .unwrap();
         *bytes.last_mut().unwrap() ^= 1;
-        assert!(decode(&format!("{PREFIX}{}", URL_SAFE_NO_PAD.encode(bytes))).is_err());
+        assert!(decode(&format!(
+            "{COMPACT_PREFIX}{}",
+            URL_SAFE_NO_PAD.encode(bytes)
+        ))
+        .is_err());
         assert!(decode("PRS1:%%%bad").is_err());
         assert!(decode("PRS1:").is_err());
         assert!(decode("PRS2:abcd").is_err());
@@ -1687,7 +1851,7 @@ mod tests {
     #[test]
     fn future_envelope_versions_and_trailing_data_are_rejected() {
         let mut envelope = envelope();
-        envelope.format_version = 3;
+        envelope.format_version = 4;
         assert!(decode(&encode_envelope(&envelope).unwrap().code).is_err());
         envelope.format_version = 1;
         let mut serialized = rmp_serde::to_vec(&WireEnvelope::from(&envelope)).unwrap();
@@ -2016,5 +2180,132 @@ mod tests {
             forged.metadata.minecraft_version = Some(version.to_string());
             assert!(decode(&encode_envelope(&forged).unwrap().code).is_err());
         }
+    }
+
+    #[test]
+    fn version_three_viewport_roundtrips_without_exposing_window_or_settings_metadata() {
+        let mut metadata = metadata();
+        metadata.hud_viewport = Some(HudViewport {
+            width: 1512.0,
+            height: 945.5,
+        });
+        let result = encode(vec![fixture()], metadata.clone()).unwrap();
+        assert!(result.code.starts_with(PREFIX));
+        let decoded = decode(&result.code).unwrap();
+        assert_eq!(decoded.format_version, 3);
+        assert_eq!(decoded.metadata, metadata);
+        assert_eq!(decoded.settings[0].value, json!("0.5"));
+        let framed = URL_SAFE_NO_PAD
+            .decode(result.code.strip_prefix(PREFIX).unwrap())
+            .unwrap();
+        let payload = decompress_compact(&framed[CHECKSUM_BYTES..]).unwrap();
+        let fields: Value = rmp_serde::from_slice(&payload).unwrap();
+        assert_eq!(fields.as_array().unwrap().len(), 8);
+        assert_eq!(fields[7], json!([1512.0, 945.5]));
+        assert!(!serde_json::to_string(&decoded).unwrap().contains("Private"));
+        let old = decode(
+            &encode(vec![fixture()], super::tests::metadata())
+                .unwrap()
+                .code,
+        )
+        .unwrap();
+        assert_eq!(old.format_version, 2);
+        assert!(old.metadata.hud_viewport.is_none());
+    }
+
+    #[test]
+    fn version_three_requires_exact_field_count_and_bounded_viewport_pair() {
+        let original = CompactHudEnvelope {
+            compact: CompactEnvelope {
+                format_version: 3,
+                ..CompactEnvelope::try_from(&envelope()).unwrap()
+            },
+            hud_viewport: Some(HudViewport {
+                width: 960.0,
+                height: 540.0,
+            }),
+        };
+        let fields = serde_json::to_value(&original).unwrap();
+        let code = |fields: &Value| {
+            frame_payload(
+                PREFIX,
+                &compress_compact(&rmp_serde::to_vec(fields).unwrap()).unwrap(),
+            )
+        };
+        assert!(decode(&code(&fields)).is_ok());
+        let mut missing = fields.clone();
+        missing.as_array_mut().unwrap().pop();
+        assert!(decode(&code(&missing)).is_err());
+        let mut extra = fields.clone();
+        extra.as_array_mut().unwrap().push(Value::Null);
+        assert!(decode(&code(&extra)).is_err());
+        for viewport in [
+            json!([0.0, 540.0]),
+            json!([960.0, 32769.0]),
+            json!([960.0]),
+            json!([960.0, 540.0, 1]),
+            json!({"width":960,"height":540}),
+        ] {
+            let mut invalid = fields.clone();
+            invalid[7] = viewport;
+            assert!(decode(&code(&invalid)).is_err());
+        }
+        let mut without_viewport = fields.clone();
+        without_viewport[7] = Value::Null;
+        assert!(decode(&code(&without_viewport))
+            .unwrap()
+            .metadata
+            .hud_viewport
+            .is_none());
+        assert!(decode(&frame_payload(
+            COMPACT_PREFIX,
+            &compress_compact(&rmp_serde::to_vec(&fields).unwrap()).unwrap()
+        ))
+        .is_err());
+        let compact = rmp_serde::to_vec(&original.compact).unwrap();
+        assert!(decode(&frame_payload(PREFIX, &compress_compact(&compact).unwrap())).is_err());
+        for width in [f64::NAN, f64::INFINITY, 32769.0] {
+            let invalid = CompactHudEnvelope {
+                hud_viewport: Some(HudViewport {
+                    width,
+                    height: 540.0,
+                }),
+                ..original.clone()
+            };
+            assert!(decode(&frame_payload(
+                PREFIX,
+                &serialize_compact(&invalid).unwrap().1
+            ))
+            .is_err());
+            let mut metadata = metadata();
+            metadata.hud_viewport = invalid.hud_viewport;
+            assert!(encode(vec![fixture()], metadata).is_err());
+        }
+    }
+
+    #[test]
+    fn one_geometry_cannot_describe_multiple_lunar_profiles() {
+        let mut first = fixture();
+        first.source = "lunar".into();
+        first.file_kind = "mods".into();
+        first.pointer = "/FPS/x".into();
+        first.value = json!(10.0);
+        let mut second = first.clone();
+        second.profile = "Other profile".into();
+        let selected = vec![first, second];
+        let mut metadata = metadata();
+        metadata.hud_viewport = Some(HudViewport {
+            width: 960.0,
+            height: 540.0,
+        });
+        assert_eq!(
+            encode(selected.clone(), metadata.clone()).unwrap_err(),
+            "Select one Lunar profile before sharing HUD positions."
+        );
+        let mut forged = envelope();
+        forged.format_version = 3;
+        forged.metadata = metadata;
+        forged.settings = prepare_settings(selected).unwrap();
+        assert!(decode(&encode_envelope(&forged).unwrap().code).is_err());
     }
 }
