@@ -1,6 +1,6 @@
 .crystal-completion {
-  width: 184px;
-  height: 132px;
+  width: min(440px, 100%);
+  height: clamp(210px, 35vh, 300px);
   margin: -12px auto -4px;
   position: relative;
   pointer-events: none;
@@ -22,4 +22,10 @@
 }
 [data-reduce-motion="true"] .crystal-completion .completion-motion {
   display: none;
+}
+
+.completion-motion-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 14px;
 }

@@ -214,6 +214,17 @@ describe("apply completion during configuration refresh", () => {
     expect(scroller.scrollTop).toBe(0);
     expect(container.querySelector(".loading-screen")).toBeNull();
     expect(container.textContent).toContain("Settings applied.");
+    await act(async () => {
+      document.documentElement.dataset.reduceMotion = "true";
+    });
+    expect(animation.dataset.motion).toBe("reduced");
+    expect(container.textContent).toContain("Reduced motion is enabled.");
+    await act(async () => {
+      document.documentElement.dataset.reduceMotion = "false";
+    });
+    expect(animation.dataset.motion).toBe("running");
+    expect(container.textContent).not.toContain("Reduced motion is enabled.");
+    expect(container.textContent).not.toContain("Play animation");
     expect(bridge.apply).toHaveBeenCalledWith(
       expect.objectContaining({
         target: { minecraftProfile: "Minecraft", lunarProfile: undefined },

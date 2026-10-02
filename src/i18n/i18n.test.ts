@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
-import { messages } from "./messages";
+import { japaneseMessages, messages } from "./messages";
+import { appearanceLabelKeys } from "../utils/appearance";
 import { translate } from ".";
 import type { Language } from "../models";
 
@@ -56,6 +57,13 @@ const placeholders = (text: string) =>
   [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
 
 describe("application translations", () => {
+  it("translates the standard verified option and appearance captions in all seven languages", () => {
+    for (const key of appearanceLabelKeys()) {
+      expect(japaneseMessages[key], `${key}: ja`).toBeTruthy();
+      for (const language of languages.filter((language) => language !== "ja"))
+        expect(messages[key]?.[language], `${key}: ${language}`).toBeTruthy();
+    }
+  });
   it("includes a complete translation for every page, action, and dialog key", () => {
     for (const key of usedKeys()) {
       expect(messages[key], key).toBeDefined();

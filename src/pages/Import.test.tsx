@@ -28,6 +28,7 @@ const bridge = vi.hoisted(() => ({
   preview: vi.fn(),
   apply: vi.fn(),
   encode: vi.fn(),
+  scan: vi.fn(),
 }));
 
 vi.mock("../services/backend", () => ({ isDesktop: true, backend: bridge }));
@@ -371,6 +372,147 @@ afterAll(() => {
 });
 
 describe("desktop import destination and repeated imports", () => {
+  it("previews verified text color with opacity while keeping size values and wire values exact", async () => {
+    const shared = envelope("windows", 80);
+    const packed = 0x806633ff | 0;
+    shared.settings.push(
+      {
+        ...setting("text-color", "lunar", packed),
+        pointer: "/KEYSTROKES/options/textColor/value",
+        category: "HUD",
+        group: "Keystrokes",
+        label: "Text Color",
+      },
+      {
+        ...setting("size-value", "lunar", 123),
+        pointer: "/KEYSTROKES/options/width",
+        category: "HUD",
+        group: "Keystrokes",
+        label: "Width",
+      },
+    );
+    bridge.decode.mockResolvedValue(shared);
+    const ordinary = bridge.preview.getMockImplementation()!;
+    bridge.preview.mockImplementation(async (args: ImportArguments) => {
+      const preview = (await ordinary(args)) as ImportPreview;
+      preview.changes = preview.changes.map((change) =>
+        change.id === "text-color" ? { ...change, current: -1 } : change,
+      );
+      return preview;
+    });
+    await enter("windows-colors");
+    await choose("default");
+    await click("Preview differences");
+    const rows = [...container.querySelectorAll(".diff-row")];
+    const colors = rows
+      .find(
+        (row) =>
+          row.querySelector("strong")?.textContent ===
+          "Keystrokes · Text color",
+      )!
+      .querySelectorAll("code");
+    expect(colors[0].textContent).toContain("#FFFFFF");
+    expect(colors[1].textContent).toContain("#6633FF");
+    expect(colors[1].textContent).toContain("50.2%");
+    expect(colors[1].title).toBe(String(packed));
+    expect(
+      colors[1].querySelector(".setting-color")?.getAttribute("aria-label"),
+    ).toBe("Color #6633FF, opacity 50.2%");
+    const size = rows.find((row) =>
+      row.querySelector("strong")?.textContent?.endsWith("Width"),
+    )!;
+    expect(size.querySelectorAll("code")[1].textContent).toBe("123");
+    expect(size.querySelector(".setting-color")).toBeNull();
+    const preview = (await bridge.preview.mock.results[0]
+      .value) as ImportPreview;
+    expect(
+      preview.changes.find((change) => change.id === "text-color")!.incoming,
+    ).toBe(packed);
+    expect(bridge.preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        selectedIds: shared.settings.map((item) => item.id),
+      }),
+    );
+  });
+  it("exports a freshly scanned preset and ignores an older preset scan arriving later", async () => {
+    const request = { lunarRoot: "/fixture/lunar" };
+    const game = {
+      ...setting("local-game", "minecraft", 70),
+      profile: "Minecraft",
+    };
+    const active = {
+      ...setting("active-option", "lunar", true),
+      profile: "default",
+    };
+    const common = {
+      ...scan,
+      activeLunarProfile: "default",
+      lunarProfiles: ["default", "my-game-profile", "third"],
+      settings: [game, active],
+    };
+    const pending = new Map<string, (value: ScanReport) => void>();
+    bridge.scan.mockImplementation(
+      (_request: unknown, profile: string) =>
+        new Promise<ScanReport>((resolve) => pending.set(profile, resolve)),
+    );
+    bridge.encode.mockResolvedValue({
+      code: "PRS2:fixture",
+      compressedBytes: 100,
+      uncompressedBytes: 200,
+      settingCount: 2,
+    });
+    await act(async () =>
+      root.render(
+        <I18nProvider language="en">
+          <Export
+            scan={common}
+            request={request}
+            backups={[]}
+            onError={onError}
+            onNotice={onNotice}
+            navigate={navigate}
+            onRefresh={onRefresh}
+            onCreated={vi.fn()}
+          />
+        </I18nProvider>,
+      ),
+    );
+    await choose("my-game-profile");
+    expect(bridge.scan).toHaveBeenLastCalledWith(request, "my-game-profile");
+    expect(button("Review preview").disabled).toBe(true);
+    expect(bridge.encode).not.toHaveBeenCalled();
+    await choose("third");
+    expect(bridge.scan).toHaveBeenLastCalledWith(request, "third");
+    const complete = {
+      ...setting("complete-option", "lunar", 123),
+      profile: "third",
+      pointer: "/KEYSTROKES/options/width",
+      label: "Width",
+    };
+    await act(async () =>
+      pending.get("third")!({ ...common, settings: [game, complete] }),
+    );
+    await click("Review preview");
+    expect(bridge.encode).toHaveBeenLastCalledWith(
+      [game, complete],
+      expect.any(Object),
+      request,
+    );
+    await act(async () =>
+      pending.get("my-game-profile")!({
+        ...common,
+        settings: [
+          { ...complete, id: "stale-option", profile: "my-game-profile" },
+        ],
+      }),
+    );
+    expect(button("Create share code").disabled).toBe(false);
+    expect(container.querySelector<HTMLSelectElement>("select")!.value).toBe(
+      "third",
+    );
+    expect(bridge.encode).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
   it("passes the configured source folders to HUD export encoding", async () => {
     const request = {
       minecraftRoot: "/fixture/game",

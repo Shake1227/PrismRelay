@@ -27,9 +27,9 @@ export const isDesktop =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export const backend = {
-  scan: (request: ScanRequest) =>
+  scan: (request: ScanRequest, lunarProfile?: string) =>
     isDesktop
-      ? invoke<ScanReport>("scan_configuration", { request })
+      ? invoke<ScanReport>("scan_configuration", { request, lunarProfile })
       : Promise.resolve(demoScan),
   encode: (
     settings: Setting[],

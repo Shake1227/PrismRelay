@@ -22,7 +22,10 @@ import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
 import { ImportDestinations } from "../components/ImportDestinations";
 import { CrystalCompletion } from "../components/CrystalCompletion";
+import type { CompletionMotion } from "../components/CrystalCompletion";
 import { HudLayoutControls, HudLayoutSummary } from "../components/HudLayout";
+import { SettingValue } from "../components/SettingValue";
+import { appearanceField, settingLabel } from "../utils/appearance";
 import type { ImportDestinationFile } from "../components/ImportDestinations";
 import { QrReader } from "../components/QrReader";
 import { Modal } from "../components/Modal";
@@ -55,6 +58,8 @@ export function Import({
   const [confirm, setConfirm] = useState(false);
   const [readingQr, setReadingQr] = useState(false);
   const [done, setDone] = useState(false);
+  const [completionMotion, setCompletionMotion] =
+    useState<CompletionMotion>("running");
   const [autoHud, setAutoHud] = useState(true);
   const [manualFallback, setManualFallback] = useState(false);
   const [manualWidth, setManualWidth] = useState("");
@@ -146,6 +151,9 @@ export function Import({
   const selectedSettings =
     decoded?.settings.filter((setting) => selected.has(setting.id)) || [];
   const hasHud = hasRootHudCoordinates(selectedSettings);
+  const selectedSettingsById = new Map(
+    selectedSettings.map((setting) => [setting.id, setting]),
+  );
   const manualSize = parseWindowSize(manualWidth, manualHeight);
   const manualInvalid = hasHud && autoHud && manualFallback && !manualSize;
   const args: ImportArguments = {
@@ -305,7 +313,7 @@ export function Import({
   if (done)
     return (
       <section className="glass-panel code-result" ref={donePanel}>
-        <CrystalCompletion />
+        <CrystalCompletion onMotionChange={setCompletionMotion} />
         <h2>
           {isDesktop
             ? t("設定を適用しました。")
@@ -333,6 +341,11 @@ export function Import({
             <p>{t("バックアップ画面から、以前の設定に戻せます。")}</p>
           </div>
         </div>
+        {completionMotion === "reduced" && (
+          <p className="completion-motion-note">
+            {t("アニメーションの軽減が有効です。")}
+          </p>
+        )}
         <button
           className="button primary"
           disabled={busy}
@@ -569,10 +582,12 @@ export function Import({
                     >
                       <div>
                         <strong>
-                          {change.label
-                            .split(" · ")
-                            .map((part) => t(part))
-                            .join(" · ")}
+                          {appearanceField(selectedSettingsById.get(change.id))
+                            ? `${t(selectedSettingsById.get(change.id)!.group)} · ${settingLabel(selectedSettingsById.get(change.id)!, t)}`
+                            : change.label
+                                .split(" · ")
+                                .map((part) => t(part))
+                                .join(" · ")}
                         </strong>
                         <small>
                           {change.source === "lunar" ? "Lunar" : "Minecraft"} ·{" "}
@@ -580,14 +595,26 @@ export function Import({
                         </small>
                       </div>
                       <code title={formatValue(change.current)}>
-                        {formattedHudIds.has(change.id)
-                          ? formatHudCoordinate(change.current)
-                          : formatValue(change.current)}
+                        <SettingValue
+                          setting={selectedSettingsById.get(change.id)}
+                          value={change.current}
+                          text={
+                            formattedHudIds.has(change.id)
+                              ? formatHudCoordinate(change.current)
+                              : undefined
+                          }
+                        />
                       </code>
                       <code title={formatValue(change.incoming)}>
-                        {formattedHudIds.has(change.id)
-                          ? formatHudCoordinate(change.incoming)
-                          : formatValue(change.incoming)}
+                        <SettingValue
+                          setting={selectedSettingsById.get(change.id)}
+                          value={change.incoming}
+                          text={
+                            formattedHudIds.has(change.id)
+                              ? formatHudCoordinate(change.incoming)
+                              : undefined
+                          }
+                        />
                       </code>
                     </div>
                   ))}

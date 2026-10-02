@@ -1,5 +1,5 @@
 import { useI18n } from "../i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,7 +11,13 @@ import {
   Share2,
 } from "lucide-react";
 import QRCode from "qrcode";
-import type { EncodedShare, Setting, TargetProfiles } from "../models";
+import type {
+  EncodedShare,
+  ScanReport,
+  ScanRequest,
+  Setting,
+  TargetProfiles,
+} from "../models";
 import { TreePicker } from "../components/TreePicker";
 import { ProfileSelect } from "../components/ProfileSelect";
 import { Modal } from "../components/Modal";
@@ -59,7 +65,36 @@ export function Export({
   const [profiles, setProfiles] = useState<TargetProfiles>(() =>
     reconcileProfiles(scan, {}),
   );
-  const settings = scan.settings.filter((setting) =>
+  const scopedProfile =
+    isDesktop &&
+    profiles.lunarProfile &&
+    profiles.lunarProfile !== scan.activeLunarProfile &&
+    scan.lunarProfiles.length > 1
+      ? profiles.lunarProfile
+      : null;
+  const [scopedScan, setScopedScan] = useState<{
+    report: ScanReport;
+    profile: string;
+    source: ScanReport;
+    request: ScanRequest;
+  } | null>(null);
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const scopeGuard = useRef(createRequestGuard());
+  const scopedReady =
+    !scopedProfile ||
+    (scopedScan?.profile === scopedProfile &&
+      scopedScan.source === scan &&
+      scopedScan.request === request);
+  const sourceSettings = useMemo(
+    () =>
+      scopedProfile
+        ? scopedReady
+          ? scopedScan!.report.settings
+          : scan.settings.filter((setting) => setting.source === "minecraft")
+        : scan.settings,
+    [scan, scopedProfile, scopedReady, scopedScan],
+  );
+  const settings = sourceSettings.filter((setting) =>
     setting.source === "minecraft"
       ? setting.profile === profiles.minecraftProfile
       : setting.profile === profiles.lunarProfile,
@@ -81,10 +116,41 @@ export function Export({
     selected.has(setting.id),
   );
   useEffect(() => {
+    const guard = scopeGuard.current;
+    const isCurrent = guard.begin();
+    if (!scopedProfile) {
+      setScopedScan(null);
+      setScopeLoading(false);
+      return;
+    }
+    previewGuard.current.invalidate();
+    setEncoded(null);
+    setCreated(false);
+    setScopeLoading(true);
+    void backend
+      .scan(request, scopedProfile)
+      .then((report) => {
+        if (isCurrent())
+          setScopedScan({
+            report,
+            profile: scopedProfile,
+            source: scan,
+            request,
+          });
+      })
+      .catch((error) => {
+        if (isCurrent()) onError(error);
+      })
+      .finally(() => {
+        if (isCurrent()) setScopeLoading(false);
+      });
+    return () => guard.invalidate();
+  }, [scan, request, scopedProfile, onError]);
+  useEffect(() => {
     previewGuard.current.invalidate();
     setSelected(
       selectPreset(
-        scan.settings.filter((setting) =>
+        sourceSettings.filter((setting) =>
           setting.source === "minecraft"
             ? setting.profile === profiles.minecraftProfile
             : setting.profile === profiles.lunarProfile,
@@ -95,7 +161,7 @@ export function Export({
     setPreset("everything");
     setEncoded(null);
     setCreated(false);
-  }, [scan, profiles]);
+  }, [sourceSettings, profiles]);
   useEffect(() => {
     setProfiles((current) => reconcileProfiles(scan, current));
   }, [scan]);
@@ -123,6 +189,7 @@ export function Export({
     setEncoded(null);
   };
   const preview = async () => {
+    if (!scopedReady || scopeLoading) return;
     const isCurrent = previewGuard.current.begin();
     setBusy(true);
     try {
@@ -371,6 +438,11 @@ export function Export({
               <Plus size={17} />
             </button>
           </div>
+          {scopeLoading && (
+            <p className="muted-copy" role="status">
+              {t("設定を読み込み中…")}
+            </p>
+          )}
           <TreePicker
             settings={settings}
             applicationIcons={scan.applicationIcons}
@@ -403,7 +475,9 @@ export function Export({
             )}
             <button
               className="button primary full"
-              disabled={!selectedSettings.length || busy}
+              disabled={
+                !selectedSettings.length || busy || !scopedReady || scopeLoading
+              }
               onClick={() =>
                 encoded ? (setCreated(true), onCreated()) : void preview()
               }

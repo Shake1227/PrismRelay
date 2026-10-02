@@ -6,6 +6,8 @@ import { buildTree, selectionState, toggleSelection } from "../utils/tree";
 import type { SettingNode } from "../utils/tree";
 import { formatValue } from "../utils/format";
 import { ApplicationIcon } from "./ApplicationIcon";
+import { SettingValue } from "./SettingValue";
+import { appearanceColor, settingLabel } from "../utils/appearance";
 function Node({
   node,
   selected,
@@ -29,7 +31,7 @@ function Node({
     if (input.current) input.current.indeterminate = state.indeterminate;
   }, [state.indeterminate]);
   const branch = node.children.length > 0;
-  const label = t(node.label);
+  const label = node.setting ? settingLabel(node.setting, t) : t(node.label);
   const isOpen = searching || expanded;
   return (
     <li className={`tree-node depth-${depth}`}>
@@ -90,8 +92,11 @@ function Node({
             <span> / {node.ids.length}</span>
           </span>
         ) : (
-          <span className="tree-value" title={formatValue(node.setting?.value)}>
-            {formatValue(node.setting?.value)}
+          <span
+            className={`tree-value ${appearanceColor(node.setting, node.setting?.value) ? "setting-color-value" : ""}`}
+            title={formatValue(node.setting?.value)}
+          >
+            <SettingValue setting={node.setting} value={node.setting?.value} />
           </span>
         )}
       </div>

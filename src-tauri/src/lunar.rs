@@ -90,12 +90,48 @@ pub fn parse_settings(
     file_kind: &str,
     profile: &str,
 ) -> Result<Vec<Setting>, String> {
+    parse_settings_inner(content, file_kind, profile, false)
+}
+
+pub fn parse_settings_with_defaults(
+    content: &str,
+    file_kind: &str,
+    profile: &str,
+) -> Result<Vec<Setting>, String> {
+    parse_settings_inner(content, file_kind, profile, true)
+}
+
+fn parse_settings_inner(
+    content: &str,
+    file_kind: &str,
+    profile: &str,
+    include_defaults: bool,
+) -> Result<Vec<Setting>, String> {
     if !matches!(file_kind, "mods" | "general" | "controls" | "performance") {
         return Err("This Lunar settings file is unsupported.".into());
     }
     let value = parse_document(content)?;
     let mut settings = Vec::new();
     collect(&value, "", file_kind, profile, &mut settings, 0);
+    if include_defaults {
+        for (pointer, value) in crate::appearance::defaults(&value, file_kind) {
+            if settings.len() >= 10000 {
+                break;
+            }
+            let (category, group, label) = describe_pointer(file_kind, &pointer);
+            settings.push(Setting {
+                id: setting_id("lunar", profile, file_kind, &pointer),
+                label,
+                source: "lunar".into(),
+                category,
+                group,
+                file_kind: file_kind.into(),
+                profile: profile.into(),
+                pointer,
+                value,
+            });
+        }
+    }
     Ok(settings)
 }
 
@@ -151,7 +187,7 @@ pub fn merge_settings(content: &str, settings: &[Setting]) -> Result<String, Str
         if setting.source != "lunar" || !seen.insert(setting.pointer.as_str()) {
             return Err("The selected Lunar settings are unsupported or duplicated.".into());
         }
-        if can_insert_module_enabled(&document, setting) {
+        if can_insert_setting(&document, setting) {
             additions.insert(setting.pointer.clone(), setting.value.clone());
         } else {
             let existing = document
@@ -177,14 +213,16 @@ pub(crate) fn value_for_existing_type(
     incoming: &Value,
 ) -> Option<Value> {
     if !crate::safety::lunar_value_is_safe(file_kind, pointer, existing)
-        || !crate::safety::lunar_value_is_safe(file_kind, pointer, incoming)
+        || !crate::safety::lunar_share_value_is_safe(file_kind, pointer, incoming)
     {
         return None;
     }
-    if same_value_type(existing, incoming) {
+    if same_value_type(existing, incoming)
+        && crate::safety::lunar_value_is_safe(file_kind, pointer, incoming)
+    {
         return Some(incoming.clone());
     }
-    let value = if existing.is_number() {
+    let mut value = if existing.is_number() {
         let raw = incoming.as_str()?;
         serde_json::from_str::<Value>(raw)
             .ok()
@@ -195,6 +233,15 @@ pub(crate) fn value_for_existing_type(
     } else {
         return None;
     };
+    if crate::appearance::field(file_kind, pointer).is_some_and(|field| field.integer) {
+        if let Some(number) = value.as_f64().filter(|number| {
+            number.is_finite()
+                && number.fract() == 0.0
+                && (-4294967296.0..=4294967295.0).contains(number)
+        }) {
+            value = Value::from(number as i64);
+        }
+    }
     crate::safety::lunar_value_is_safe(file_kind, pointer, &value).then_some(value)
 }
 
@@ -217,6 +264,17 @@ pub(crate) fn can_insert_module_enabled(document: &Value, setting: &Setting) -> 
         .strip_suffix("/enabled")
         .and_then(|parent| document.pointer(parent))
         .is_some_and(Value::is_object)
+}
+
+pub(crate) fn can_insert_setting(document: &Value, setting: &Setting) -> bool {
+    can_insert_module_enabled(document, setting)
+        || (setting.source == "lunar"
+            && crate::appearance::can_insert(
+                document,
+                &setting.file_kind,
+                &setting.pointer,
+                &setting.value,
+            ))
 }
 
 pub(crate) fn replace_scalar_values(
@@ -243,20 +301,22 @@ fn patch_scalar_values(
             return Err("A selected setting uses a different Lunar schema version.".into());
         }
     }
-    let mut selected: BTreeSet<&str> = changes.keys().map(String::as_str).collect();
+    let mut insertions = BTreeMap::<String, Value>::new();
     for (pointer, value) in additions {
-        let parent = pointer
-            .strip_suffix("/enabled")
-            .ok_or("This Lunar field cannot be added.")?;
-        if !value.is_boolean()
+        if !(value.is_boolean() || value.is_number() || value.is_string())
             || document.pointer(pointer).is_some()
-            || !document.pointer(parent).is_some_and(Value::is_object)
             || changes.contains_key(pointer)
         {
             return Err("This Lunar field cannot be added.".into());
         }
-        selected.insert(parent);
+        let (parent, missing) = missing_path(&document, pointer)?;
+        let fields = insertions
+            .entry(parent)
+            .or_insert_with(|| Value::Object(Map::new()));
+        insert_missing(fields, &missing, value)?;
     }
+    let mut selected: BTreeSet<&str> = changes.keys().map(String::as_str).collect();
+    selected.extend(insertions.keys().map(String::as_str));
     let mut tokens = ScalarTokens {
         text: content,
         offset: usize::from(content.starts_with('\u{feff}')) * 3,
@@ -274,11 +334,10 @@ fn patch_scalar_values(
             .map_err(|_| "The Lunar settings could not be prepared.".to_string())?;
         replacements.push((span, value));
     }
-    for (pointer, value) in additions {
-        let parent = pointer.strip_suffix("/enabled").unwrap();
+    for (parent, fields) in &insertions {
         let span = tokens
             .spans
-            .remove(parent)
+            .remove(parent.as_str())
             .ok_or("The Lunar setting location could not be verified.")?;
         let comma = if document
             .pointer(parent)
@@ -291,10 +350,13 @@ fn patch_scalar_values(
         } else {
             ","
         };
-        let value = serde_json::to_string(value)
+        let value = serde_json::to_string(fields)
             .map_err(|_| "The Lunar settings could not be prepared.".to_string())?;
         let offset = span.end - 1;
-        replacements.push((offset..offset, format!("{comma}\"enabled\":{value}")));
+        replacements.push((
+            offset..offset,
+            format!("{comma}{}", &value[1..value.len() - 1]),
+        ));
     }
     replacements.sort_by_key(|replacement| std::cmp::Reverse(replacement.0.start));
     let mut output = content.to_owned();
@@ -303,6 +365,52 @@ fn patch_scalar_values(
     }
     parse_document(&output)?;
     Ok(output)
+}
+
+fn missing_path(document: &Value, pointer: &str) -> Result<(String, Vec<String>), String> {
+    let tokens: Vec<_> = pointer
+        .strip_prefix('/')
+        .ok_or("This Lunar field cannot be added.")?
+        .split('/')
+        .collect();
+    let mut current = document;
+    let mut parent = String::new();
+    for (index, token) in tokens.iter().enumerate() {
+        let object = current
+            .as_object()
+            .ok_or("This Lunar field cannot be added.")?;
+        let key = token.replace("~1", "/").replace("~0", "~");
+        let Some(child) = object.get(&key) else {
+            let missing = tokens[index..]
+                .iter()
+                .map(|token| token.replace("~1", "/").replace("~0", "~"))
+                .collect();
+            return Ok((parent, missing));
+        };
+        current = child;
+        parent.push('/');
+        parent.push_str(token);
+    }
+    Err("This Lunar field cannot be added.".into())
+}
+
+fn insert_missing(target: &mut Value, tokens: &[String], value: &Value) -> Result<(), String> {
+    let (key, children) = tokens
+        .split_first()
+        .ok_or("This Lunar field cannot be added.")?;
+    let object = target
+        .as_object_mut()
+        .ok_or("This Lunar field cannot be added.")?;
+    if children.is_empty() {
+        if object.insert(key.clone(), value.clone()).is_some() {
+            return Err("This Lunar field cannot be added.".into());
+        }
+        return Ok(());
+    }
+    let child = object
+        .entry(key.clone())
+        .or_insert_with(|| Value::Object(Map::new()));
+    insert_missing(child, children, value)
 }
 
 struct ScalarTokens<'a> {
@@ -618,16 +726,183 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_numeric_representations_preserve_the_destination_type() {
-        let source = parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"3"}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap();
-        let target = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":1}},"TIME_CHANGER":{"options":{"timeChangerTime":"2"}},"unknown":0.123456789012345678901}"#;
+    fn appearance_import_creates_nested_fields_and_preserves_unrelated_tokens() {
+        let incoming = parse_settings(
+            r#"{"KEYSTROKES":{"options":{"backgroundColor":{"value":1074864691,"chroma":true},"backgroundPressedColor":{"value":-16711936}}}}"#,
+            "mods",
+            "source",
+        )
+        .unwrap();
+        assert_eq!(incoming.len(), 3);
+        let original = "\u{feff}{\r\n\"KEYSTROKES\": { \"enabled\": false, \"x\":42.25, \"unknown\":0.9000000000000000001 },\r\n\"outside\":{\"data\":[1,true]}\r\n}\r\n";
+        let output = merge_settings(original, &incoming).unwrap();
+        assert!(output.starts_with('\u{feff}'));
+        assert!(output.ends_with("}\r\n"));
+        assert!(
+            output.contains("\"enabled\": false, \"x\":42.25, \"unknown\":0.9000000000000000001 ")
+        );
+        assert!(output.contains("\"outside\":{\"data\":[1,true]}"));
+        let document = parse_document(&output).unwrap();
+        for setting in &incoming {
+            assert_eq!(document.pointer(&setting.pointer), Some(&setting.value));
+        }
+        assert_eq!(merge_settings(&output, &incoming).unwrap(), output);
+        let next = parse_settings(
+            r#"{"KEYSTROKES":{"options":{"backgroundColor":{"value":0,"chroma":false},"backgroundPressedColor":{"value":-1}}}}"#,
+            "mods",
+            "source",
+        )
+        .unwrap();
+        let second = merge_settings(&output, &next).unwrap();
+        let document = parse_document(&second).unwrap();
+        for setting in &next {
+            assert_eq!(document.pointer(&setting.pointer), Some(&setting.value));
+        }
+        assert!(second.contains("\"unknown\":0.9000000000000000001"));
+    }
+
+    #[test]
+    fn appearance_insert_rejects_missing_components_and_damaged_parents() {
+        let incoming = parse_settings(
+            r#"{"KEYSTROKES":{"options":{"backgroundColor":{"value":-1}}}}"#,
+            "mods",
+            "source",
+        )
+        .unwrap();
+        for original in [
+            r#"{}"#,
+            r#"{"KEYSTROKES":null}"#,
+            r#"{"KEYSTROKES":{"options":null}}"#,
+            r#"{"KEYSTROKES":{"options":[]}}"#,
+            r#"{"KEYSTROKES":{"options":{"backgroundColor":"broken"}}}"#,
+            r#"{"KEYSTROKES":{"options":{"backgroundColor":{"value":"broken"}}}}"#,
+        ] {
+            assert!(merge_settings(original, &incoming).is_err());
+        }
+        let mut unknown = incoming[0].clone();
+        unknown.pointer = "/KEYSTROKES/options/accountColor/value".into();
+        assert!(merge_settings(r#"{"KEYSTROKES":{}}"#, &[unknown]).is_err());
+        assert!(merge_settings(
+            r#"{"KEYSTROKES":{}}"#,
+            &[incoming[0].clone(), incoming[0].clone()],
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn appearance_export_includes_defaults_without_guessing_damaged_values() {
+        let source = r#"{"KEYSTROKES":{"options":{"backgroundColor":{"value":0,"chroma":true}}}}"#;
+        let settings = parse_settings_with_defaults(source, "mods", "source").unwrap();
+        let values: BTreeMap<_, _> = settings
+            .iter()
+            .map(|setting| (setting.pointer.as_str(), &setting.value))
+            .collect();
+        assert_eq!(
+            values["/KEYSTROKES/options/backgroundColor/value"],
+            &json!(0)
+        );
+        assert_eq!(
+            values["/KEYSTROKES/options/backgroundColor/chroma"],
+            &json!(true)
+        );
+        assert_eq!(values["/KEYSTROKES/options/textColor/value"], &json!(-1));
+        assert_eq!(
+            values["/KEYSTROKES/options/textPressedColor/value"],
+            &json!(-16777216)
+        );
+        assert_eq!(
+            values["/KEYSTROKES/options/textColor/chromaSpeed"],
+            &json!(40)
+        );
+        assert_eq!(
+            values["/KEYSTROKES/options/textColor/chromaType"],
+            &json!("wave")
+        );
+        assert_eq!(values.len(), settings.len());
+        for damaged in [
+            r#"{"KEYSTROKES":{"options":{"textColor":{"value":"invalid"}}}}"#,
+            r#"{"KEYSTROKES":{"options":{"textColor":{"value":2147483648}}}}"#,
+            r#"{"KEYSTROKES":{"options":{"textColor":{"chromaType":"unknown"}}}}"#,
+            r#"{"KEYSTROKES":{"options":{"textColor":null}}}"#,
+        ] {
+            let settings = parse_settings_with_defaults(damaged, "mods", "source").unwrap();
+            assert!(!settings.iter().any(|setting| {
+                setting
+                    .pointer
+                    .starts_with("/KEYSTROKES/options/textColor/")
+                    && parse_document(damaged)
+                        .unwrap()
+                        .pointer(&setting.pointer)
+                        .is_none()
+            }));
+        }
+        assert!(parse_settings_with_defaults("{}", "mods", "source")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn incomplete_keybinds_only_fill_verified_defaults_without_masking_damaged_members() {
+        let source =
+            r#"{"COORDINATES":{"options":{"copyCoords":{"value":"KEY_C","control":true}}}}"#;
+        let settings = parse_settings_with_defaults(source, "mods", "source").unwrap();
+        let values: BTreeMap<_, _> = settings
+            .iter()
+            .map(|setting| (setting.pointer.as_str(), &setting.value))
+            .collect();
+        assert_eq!(
+            values["/COORDINATES/options/copyCoords/value"],
+            &json!("KEY_C")
+        );
+        assert_eq!(
+            values["/COORDINATES/options/copyCoords/modifier"],
+            &json!("KEY_NONE")
+        );
+        assert_eq!(values["/COORDINATES/options/copyCoords/alt"], &json!(false));
+        assert_eq!(
+            values["/COORDINATES/options/copyCoords/shift"],
+            &json!(false)
+        );
+        assert_eq!(
+            values["/COORDINATES/options/copyCoords/control"],
+            &json!(true)
+        );
+        for damaged in [
+            r#"{"COORDINATES":{"options":{"copyCoords":{"value":"private command"}}}}"#,
+            r#"{"COORDINATES":{"options":{"copyCoords":{"modifier":7}}}}"#,
+            r#"{"COORDINATES":{"options":{"copyCoords":{"alt":"false"}}}}"#,
+            r#"{"COORDINATES":{"options":{"copyCoords":null}}}"#,
+        ] {
+            let document = parse_document(damaged).unwrap();
+            let settings = parse_settings_with_defaults(damaged, "mods", "source").unwrap();
+            assert!(!settings.iter().any(|setting| {
+                setting
+                    .pointer
+                    .starts_with("/COORDINATES/options/copyCoords/")
+                    && document.pointer(&setting.pointer).is_none()
+            }));
+            let incoming = parse_settings(source, "mods", "source").unwrap();
+            assert!(merge_settings(damaged, &incoming).is_err());
+        }
+    }
+
+    #[test]
+    fn primary_numeric_options_preserve_numbers_and_reject_string_coercion() {
+        let source = parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":3}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap();
+        assert_eq!(source.len(), 2);
+        let target = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":2}},"TIME_CHANGER":{"options":{"timeChangerTime":2}},"unknown":0.123456789012345678901}"#;
         let output = merge_settings(target, &source).unwrap();
         assert_eq!(
             output,
             target
-                .replace("\"flyBoostAmount\":1", "\"flyBoostAmount\":3")
-                .replace("\"timeChangerTime\":\"2\"", "\"timeChangerTime\":\"4\"")
+                .replace("\"flyBoostAmount\":2", "\"flyBoostAmount\":3")
+                .replace("\"timeChangerTime\":2", "\"timeChangerTime\":4")
         );
+        let invalid = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"3"}},"TIME_CHANGER":{"options":{"timeChangerTime":"4"}}}"#;
+        assert!(parse_settings(invalid, "mods", "source")
+            .unwrap()
+            .is_empty());
+        assert!(merge_settings(invalid, &source).is_err());
         assert_eq!(
             value_for_existing_type("mods", "/FPS/x", &json!(0.2), &json!("0.3")),
             None

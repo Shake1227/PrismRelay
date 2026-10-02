@@ -1,3 +1,4 @@
+pub mod appearance;
 pub mod backup;
 pub mod codec;
 pub mod display;
@@ -100,13 +101,14 @@ async fn blocking<T: Send + 'static>(
 #[tauri::command]
 async fn scan_configuration(
     request: ScanRequest,
+    lunar_profile: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<ScanReport, String> {
     let store = state.store.clone();
     blocking(move || {
         let _lock = store.lock()?;
         let recovered = store.recover()?;
-        let mut report = scanner::scan(request)?;
+        let mut report = scanner::scan_for_profile(request, lunar_profile.as_deref())?;
         if recovered {
             report
                 .warnings
@@ -139,7 +141,8 @@ async fn encode_share(
             .iter()
             .find(|setting| hud::is_adaptable_coordinate(setting))
         {
-            let report = scanner::scan(request.unwrap_or_default())?;
+            let report =
+                scanner::scan_for_profile(request.unwrap_or_default(), Some(&setting.profile))?;
             let context = hud_layout_context(&window, &HudLayoutRequest::default());
             metadata.hud_viewport = context
                 .window

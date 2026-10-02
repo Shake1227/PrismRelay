@@ -1,35 +1,57 @@
 import { useEffect, useId, useRef } from "react";
 import "./CrystalCompletion.css";
 
-const duration = 4200;
-const facets = [
-  { path: "M32 5 57 19 36.5 36 32 14Z", x: 22, y: -26, rotation: 32 },
-  { path: "M7 19 32 5 32 14 14 46 7 46Z", x: -28, y: -18, rotation: -38 },
-  { path: "M32 14 36.5 36 14 46Z", x: -17, y: 3, rotation: -24 },
-  { path: "M36.5 36 50 46H14Z", x: 10, y: 26, rotation: 42 },
-  { path: "M57 19V46L32 60 36.5 36Z", x: 30, y: 12, rotation: 36 },
-  { path: "M7 46H14l22.5-10L32 60Z", x: -21, y: 25, rotation: -30 },
+const duration = 6200;
+const surfaces = [
+  { path: "M32 5 7 19 32 14Z", x: -24, y: -32, rotation: -38 },
+  { path: "M32 5 32 14 57 19Z", x: 24, y: -30, rotation: 34 },
+  { path: "M7 19 7 46 14 46Z", x: -38, y: 2, rotation: -42 },
+  { path: "M7 19 32 14 14 46Z", x: -28, y: -10, rotation: -24 },
+  { path: "M32 14 36.5 36 14 46Z", x: -14, y: 12, rotation: -32 },
+  { path: "M32 14 57 19 36.5 36Z", x: 21, y: -12, rotation: 28 },
+  { path: "M57 19 57 46 36.5 36Z", x: 39, y: 8, rotation: 42 },
+  { path: "M57 46 32 60 36.5 36Z", x: 22, y: 32, rotation: 38 },
+  { path: "M14 46 36.5 36 32 60Z", x: -5, y: 36, rotation: -28 },
+  { path: "M7 46 14 46 32 60Z", x: -30, y: 24, rotation: -46 },
 ];
-const filaments = [
-  "M32 32C10 26 2 10-13 5S-8-10-27-15",
-  "M32 32C54 25 62 5 77 8S78-7 94-10",
-  "M32 32C48 35 59 18 75 24S82 13 102 17",
-  "M32 32C13 42-4 29-15 42S-28 38-37 54",
-  "M32 32C43 54 62 47 71 66S85 64 93 82",
-  "M32 32C25 55 12 53 7 70S-4 72-12 90",
-  "M32 32C22 14 40 4 32-12S39-20 33-31",
-  "M32 32C50 44 67 31 84 44S89 37 106 48",
-];
-const particles = Array.from({ length: 22 }, (_, index) => {
-  const angle = (index * Math.PI * 2) / 22;
-  const distance = 33 + (index % 4) * 8;
-  return {
-    x: Math.cos(angle) * distance,
-    y: Math.sin(angle) * distance,
-    radius: 0.65 + (index % 3) * 0.35,
-    delay: (index % 5) * 25,
-  };
+const facets = surfaces.flatMap((surface, index) => {
+  if (index >= 6) return [surface];
+  const points = surface.path.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+  const midpoint = [(points[2] + points[4]) / 2, (points[3] + points[5]) / 2];
+  return [
+    {
+      ...surface,
+      path: `M${points[0]} ${points[1]} ${points[2]} ${points[3]} ${midpoint[0]} ${midpoint[1]}Z`,
+      x: surface.x * 1.1 - 4,
+      y: surface.y * 1.1 - 3,
+      rotation: surface.rotation - 19,
+    },
+    {
+      ...surface,
+      path: `M${points[0]} ${points[1]} ${midpoint[0]} ${midpoint[1]} ${points[4]} ${points[5]}Z`,
+      x: surface.x * 1.18 + 5,
+      y: surface.y * 1.18 + 4,
+      rotation: surface.rotation + 23,
+    },
+  ];
 });
+
+const filaments = [
+  "M-27-15C-6-21-2 9 12 13S24 25 32 32",
+  "M94-10C73-18 66 7 50 15S37 25 32 32",
+  "M102 17C87 34 59 15 48 25S38 29 32 32",
+  "M-37 54C-23 34-2 56 13 45S25 36 32 32",
+  "M93 82C66 86 73 48 54 45S38 35 32 32",
+  "M-12 90C14 81-1 56 17 48S28 37 32 32",
+  "M33-31C53-13 24 1 33 14S33 27 32 32",
+  "M106 48C89 63 64 36 53 39S39 34 32 32",
+];
+const particles = Array.from({ length: 48 }, (_, index) => ({
+  angle: index * 2.399963229728653,
+  distance: 54 + ((index * 17) % 31),
+  radius: 0.65 + (index % 5) * 0.28,
+  delay: (index % 7) * 0.011,
+}));
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 function valueAt(time: number, points: [number, number][]): number {
   for (let index = 1; index < points.length; index++) {
@@ -78,7 +100,13 @@ function CrystalGeometry({ gradient }: { gradient: string }) {
   );
 }
 
-export function CrystalCompletion() {
+export type CompletionMotion = "reduced" | "running" | "finished";
+
+export function CrystalCompletion({
+  onMotionChange,
+}: {
+  onMotionChange?: (state: CompletionMotion) => void;
+}) {
   const root = useRef<HTMLDivElement>(null);
   const id = useId().replace(/:/g, "");
   const gradient = `completion-gradient-${id}`;
@@ -95,41 +123,92 @@ export function CrystalCompletion() {
       element.querySelector<SVGElement>(`.completion-${name}`)!;
     const core = find("crystal");
     const field = find("field");
-    const ring = find("ring");
-    const orbits = find("orbits");
+    const charge = find("charge");
+    const seams = find("seams");
     const afterglow = find("afterglow");
-    const rest = find("rest");
     const lightPaths = element.querySelectorAll<SVGElement>(
       ".completion-filament",
     );
     const shards = element.querySelectorAll<SVGElement>(".completion-shard");
     const sparks = element.querySelectorAll<SVGElement>(".completion-particle");
+    const trails = element.querySelectorAll<SVGElement>(
+      ".completion-particle-trail",
+    );
     let frame = 0;
     let started = false;
-    let start: number | undefined;
+    let elapsed = 0;
+    let lastTimestamp: number | undefined;
+    let motion: CompletionMotion = "reduced";
+    const setMotion = (value: CompletionMotion) => {
+      motion = value;
+      element.dataset.motion = value;
+      onMotionChange?.(value);
+    };
+    const resetGeometry = () => {
+      for (const node of [
+        field,
+        charge,
+        seams,
+        afterglow,
+        ...lightPaths,
+        ...shards,
+        ...sparks,
+        ...trails,
+      ]) {
+        node.setAttribute("opacity", "0");
+        node.removeAttribute("transform");
+      }
+      core.setAttribute("opacity", "1");
+      core.removeAttribute("transform");
+    };
     const opacity = (node: SVGElement, value: number) =>
       node.setAttribute("opacity", String(value));
     const reset = () => {
       window.cancelAnimationFrame(frame);
-      element.dataset.motion = "reduced";
-      opacity(core, 1);
-      core.removeAttribute("transform");
+      frame = 0;
+      started = false;
+      elapsed = 0;
+      lastTimestamp = undefined;
+      resetGeometry();
+      setMotion("reduced");
       opacity(afterglow, 0.18);
     };
     const animate = (timestamp: number) => {
-      start ??= timestamp;
-      const elapsed = timestamp - start;
+      frame = 0;
+      if (document.visibilityState === "hidden") {
+        lastTimestamp = undefined;
+        return;
+      }
+      if (lastTimestamp !== undefined)
+        elapsed += Math.max(0, timestamp - lastTimestamp);
+      lastTimestamp = timestamp;
       const time = clamp(elapsed / duration);
-      const progress = clamp((time - 0.08) / 0.5);
-      const wave = Math.PI * 2 * (2 * progress + 7 * progress * progress);
+      if (time >= 1) {
+        for (const node of [
+          core,
+          field,
+          charge,
+          seams,
+          afterglow,
+          ...lightPaths,
+          ...shards,
+          ...sparks,
+          ...trails,
+        ])
+          opacity(node, 0);
+        setMotion("finished");
+        return;
+      }
+      const progress = clamp((time - 0.08) / 0.62);
+      const wave = Math.PI * 2 * (1.6 * progress + 10 * progress * progress);
       const amplitude =
-        time < 0.08 || time >= 0.61 ? 0 : 0.2 + 3 * progress * progress;
+        time < 0.08 || time >= 0.71 ? 0 : 0.1 + 4.2 * progress * progress;
       opacity(
         core,
         valueAt(time, [
           [0, 1],
-          [0.61, 1],
-          [0.64, 0],
+          [0.7, 1],
+          [0.73, 0],
           [1, 0],
         ]),
       );
@@ -137,26 +216,50 @@ export function CrystalCompletion() {
         "transform",
         transform(
           Math.sin(wave) * amplitude,
-          Math.sin(wave * 1.3) * amplitude * 0.25,
-          Math.sin(wave) * amplitude * 1.4,
+          Math.sin(wave * 1.3) * amplitude * 0.3,
+          Math.sin(wave) * amplitude * 1.2,
           valueAt(time, [
             [0, 1],
-            [0.57, 1],
-            [0.61, 1.12],
-            [0.64, 0.94],
-            [1, 0.94],
+            [0.62, 1],
+            [0.7, 1.06],
+            [0.73, 0.96],
+            [1, 0.96],
           ]),
         ),
+      );
+      opacity(
+        charge,
+        valueAt(time, [
+          [0, 0],
+          [0.12, 0.03],
+          [0.38, 0.36],
+          [0.58, 0.8],
+          [0.7, 0.98],
+          [0.73, 0],
+          [1, 0],
+        ]),
+      );
+      opacity(
+        seams,
+        valueAt(time, [
+          [0, 0],
+          [0.25, 0],
+          [0.48, 0.35],
+          [0.66, 0.85],
+          [0.71, 1],
+          [0.74, 0],
+          [1, 0],
+        ]),
       );
       opacity(
         field,
         valueAt(time, [
           [0, 0],
-          [0.18, 0],
-          [0.38, 0.2],
-          [0.55, 0.7],
-          [0.63, 0.95],
-          [0.78, 0.45],
+          [0.3, 0],
+          [0.58, 0.18],
+          [0.69, 0.95],
+          [0.74, 0.75],
+          [0.85, 0],
           [1, 0],
         ]),
       );
@@ -167,185 +270,142 @@ export function CrystalCompletion() {
           0,
           0,
           valueAt(time, [
-            [0, 0.4],
-            [0.18, 0.4],
-            [0.38, 0.75],
-            [0.55, 1.1],
-            [0.63, 1.8],
-            [0.78, 2.3],
-            [1, 2.7],
-          ]),
-        ),
-      );
-      opacity(
-        orbits,
-        valueAt(time, [
-          [0, 0],
-          [0.38, 0],
-          [0.52, 0.2],
-          [0.63, 0.55],
-          [0.76, 0],
-          [1, 0],
-        ]),
-      );
-      opacity(
-        ring,
-        valueAt(time, [
-          [0, 0],
-          [0.56, 0],
-          [0.64, 0.85],
-          [0.82, 0.15],
-          [1, 0],
-        ]),
-      );
-      ring.setAttribute(
-        "transform",
-        transform(
-          0,
-          0,
-          0,
-          valueAt(time, [
-            [0, 0.55],
-            [0.56, 0.55],
-            [0.64, 1.15],
-            [0.82, 2.7],
-            [1, 3.1],
+            [0, 0.7],
+            [0.58, 0.7],
+            [0.69, 1.2],
+            [0.74, 1.9],
+            [0.85, 2.1],
+            [1, 2.1],
           ]),
         ),
       );
       lightPaths.forEach((node, index) => {
-        const local = clamp((elapsed - (index % 3) * 35) / duration);
+        const delay = (index % 3) * 0.012;
+        const local = clamp((time - delay) / (1 - delay));
         opacity(
           node,
           valueAt(local, [
             [0, 0],
-            [0.43, 0],
-            [0.58, 0.35],
-            [0.65, 0.95],
-            [0.77, 0.35],
-            [0.94, 0],
+            [0.12, 0.06],
+            [0.3, 0.2],
+            [0.52, 0.35],
+            [0.66, 0],
             [1, 0],
           ]),
         );
-        node.setAttribute(
-          "stroke-dashoffset",
-          String(
-            valueAt(local, [
-              [0, 150],
-              [0.43, 150],
-              [0.58, 115],
-              [0.65, 38],
-              [0.77, 0],
-              [0.94, -70],
-              [1, -70],
-            ]),
-          ),
-        );
+        node.setAttribute("stroke-dashoffset", String(-elapsed / (32 - index)));
       });
       shards.forEach((node, index) => {
-        const local = clamp((elapsed - index * 12) / duration);
+        const delay = (index % 4) * 0.006;
+        const local = clamp((time - delay) / (1 - delay));
         const travel = valueAt(local, [
           [0, 0],
-          [0.63, 0],
-          [0.78, 1],
-          [1, 1.6],
+          [0.7, 0],
+          [0.84, 1],
+          [1, 1.45],
         ]);
         const facet = facets[index];
         opacity(
           node,
           valueAt(local, [
             [0, 0],
-            [0.6, 0],
-            [0.63, 1],
-            [0.78, 0.7],
+            [0.69, 0],
+            [0.72, 1],
+            [0.84, 0.85],
+            [0.95, 0.2],
             [1, 0],
           ]),
         );
         node.setAttribute(
           "transform",
           transform(
-            facet.x * travel,
-            facet.y * travel,
-            facet.rotation * Math.min(1, travel),
+            facet.x * travel * 1.2,
+            facet.y * travel * 1.2 + 12 * travel * travel,
+            facet.rotation * travel,
             valueAt(local, [
               [0, 1],
-              [0.6, 1],
-              [0.63, 1.08],
-              [0.78, 0.78],
-              [1, 0.2],
+              [0.7, 1],
+              [0.84, 0.8],
+              [1, 0.4],
             ]),
           ),
         );
       });
+      const positionAt = (
+        particle: (typeof particles)[number],
+        clock: number,
+      ) => {
+        if (clock >= 0.7) {
+          const travel = clamp((clock - 0.7) / 0.3);
+          const distance =
+            particle.distance *
+            (0.12 + 1.12 * (1 - (1 - travel) * (1 - travel)));
+          const angle = particle.angle + 1.5 + travel * 0.35;
+          return {
+            x: Math.cos(angle) * distance,
+            y: Math.sin(angle) * distance + 9 * travel * travel,
+          };
+        }
+        const travel = clamp((clock - particle.delay) / 0.62);
+        const distance = particle.distance * Math.pow(1 - travel, 1.35);
+        const angle =
+          particle.angle + 1.5 * travel + 0.16 * Math.sin(travel * Math.PI);
+        return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+      };
       sparks.forEach((node, index) => {
         const particle = particles[index];
-        const local = clamp((elapsed - particle.delay) / duration);
-        const travel = valueAt(local, [
+        const local = clamp((time - particle.delay) / (1 - particle.delay));
+        const light = valueAt(local, [
           [0, 0],
-          [0.58, 0],
-          [0.64, 0.18],
-          [0.84, 1],
-          [1, 1.25],
+          [0.08, 0.25],
+          [0.28, 0.7],
+          [0.52, 1],
+          [0.64, 0],
+          [0.7, 0],
+          [0.73, 1],
+          [0.88, 0.6],
+          [1, 0],
         ]);
-        opacity(
-          node,
-          valueAt(local, [
-            [0, 0],
-            [0.58, 0],
-            [0.64, 1],
-            [0.84, 0.6],
-            [1, 0],
-          ]),
+        const position = positionAt(particle, time);
+        const previous = positionAt(
+          particle,
+          Math.max(time >= 0.7 ? 0.7 : 0, time - 0.03),
         );
+        opacity(node, light);
         node.setAttribute(
           "transform",
           transform(
-            particle.x * travel,
-            particle.y * travel,
+            position.x,
+            position.y,
             0,
             valueAt(local, [
-              [0, 0.3],
-              [0.58, 0.3],
-              [0.64, 1.3],
-              [0.84, 0.8],
-              [1, 0.1],
+              [0, 0.7],
+              [0.52, 1.05],
+              [0.64, 0.4],
+              [0.7, 0.4],
+              [0.73, 1.3],
+              [1, 0.2],
             ]),
           ),
+        );
+        const trail = trails[index];
+        opacity(trail, light * 0.65);
+        trail.setAttribute(
+          "d",
+          `M${32 + previous.x} ${32 + previous.y}L${32 + position.x} ${32 + position.y}`,
         );
       });
       opacity(
         afterglow,
         valueAt(time, [
           [0, 0],
-          [0.7, 0],
-          [0.87, 0.2],
-          [1, 0.16],
+          [0.67, 0],
+          [0.72, 0.35],
+          [0.88, 0.12],
+          [1, 0],
         ]),
       );
-      opacity(
-        rest,
-        valueAt(time, [
-          [0, 0],
-          [0.8, 0],
-          [1, 0.55],
-        ]),
-      );
-      rest.setAttribute(
-        "transform",
-        transform(
-          0,
-          0,
-          0,
-          valueAt(time, [
-            [0, 0.4],
-            [0.8, 0.4],
-            [1, 0.8],
-          ]),
-        ),
-      );
-      if (elapsed < duration + 100)
-        frame = window.requestAnimationFrame(animate);
-      else element.dataset.motion = "finished";
+      frame = window.requestAnimationFrame(animate);
     };
     const updateMotion = () => {
       if (
@@ -355,11 +415,22 @@ export function CrystalCompletion() {
         reset();
       else if (!started) {
         started = true;
-        element.dataset.motion = "running";
-        frame = window.requestAnimationFrame(animate);
+        resetGeometry();
+        setMotion("running");
+        if (document.visibilityState !== "hidden")
+          frame = window.requestAnimationFrame(animate);
       }
     };
+    const updateVisibility = () => {
+      if (motion !== "running") return;
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+      lastTimestamp = undefined;
+      if (document.visibilityState !== "hidden")
+        frame = window.requestAnimationFrame(animate);
+    };
     updateMotion();
+    document.addEventListener("visibilitychange", updateVisibility);
     query.addEventListener?.("change", updateMotion);
     const observer = new window.MutationObserver(updateMotion);
     observer.observe(document.documentElement, {
@@ -369,9 +440,10 @@ export function CrystalCompletion() {
     return () => {
       window.cancelAnimationFrame(frame);
       query.removeEventListener?.("change", updateMotion);
+      document.removeEventListener("visibilitychange", updateVisibility);
       observer.disconnect();
     };
-  }, []);
+  }, [onMotionChange]);
 
   return (
     <div
@@ -390,15 +462,15 @@ export function CrystalCompletion() {
             y2="54"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#9a8fff" />
-            <stop offset=".5" stopColor="#e9e5ff" />
-            <stop offset="1" stopColor="#58ddcf" />
+            <stop stopColor="#b68dff" />
+            <stop offset=".5" stopColor="#ffffff" />
+            <stop offset="1" stopColor="#63ffee" />
           </linearGradient>
           <radialGradient id={plasma}>
             <stop stopColor="#fff" stopOpacity=".95" />
-            <stop offset=".22" stopColor="#e7deff" stopOpacity=".9" />
-            <stop offset=".5" stopColor="#a087ff" stopOpacity=".48" />
-            <stop offset=".75" stopColor="#64efdd" stopOpacity=".18" />
+            <stop offset=".22" stopColor="#efffff" stopOpacity="1" />
+            <stop offset=".5" stopColor="#cc8aff" stopOpacity=".75" />
+            <stop offset=".75" stopColor="#64ffec" stopOpacity=".32" />
             <stop offset="1" stopColor="#8e79ff" stopOpacity="0" />
           </radialGradient>
           <filter
@@ -409,7 +481,7 @@ export function CrystalCompletion() {
             height="300%"
             colorInterpolationFilters="sRGB"
           >
-            <feGaussianBlur stdDeviation="2.1" />
+            <feGaussianBlur stdDeviation="2.7" />
             <feMerge>
               <feMergeNode />
               <feMergeNode in="SourceGraphic" />
@@ -434,38 +506,8 @@ export function CrystalCompletion() {
           filter={url(glow)}
           opacity="0"
         >
-          <circle cx="32" cy="32" r="30" fill={url(plasma)} />
+          <path d="M32 5 57 19v27L32 60 7 46V19Z" fill={url(plasma)} />
         </g>
-        <g
-          className="completion-motion completion-orbits"
-          stroke={url(gradient)}
-          strokeWidth=".7"
-          opacity="0"
-        >
-          <ellipse
-            cx="32"
-            cy="32"
-            rx="40"
-            ry="14"
-            transform="rotate(-24 32 32)"
-          />
-          <ellipse
-            cx="32"
-            cy="32"
-            rx="35"
-            ry="18"
-            transform="rotate(34 32 32)"
-          />
-        </g>
-        <circle
-          className="completion-motion completion-ring"
-          cx="32"
-          cy="32"
-          r="23"
-          stroke={url(gradient)}
-          strokeWidth=".8"
-          opacity="0"
-        />
         <g className="completion-motion" filter={url(glow)}>
           {filaments.map((path, index) => (
             <path
@@ -474,22 +516,58 @@ export function CrystalCompletion() {
               d={path}
               stroke={index % 3 === 0 ? "#eefcff" : url(gradient)}
               strokeWidth={index % 3 === 0 ? ".55" : ".85"}
-              strokeDasharray="150"
-              strokeDashoffset="150"
+              strokeDasharray="1 12"
+              strokeDashoffset="0"
               opacity="0"
             />
           ))}
         </g>
         <g className="completion-crystal" filter={url(glow)}>
           <CrystalGeometry gradient={gradient} />
+          <path
+            className="completion-motion completion-charge"
+            d="M32 5 57 19v27L32 60 7 46V19Z"
+            fill={url(plasma)}
+            opacity="0"
+          />
+          <path
+            className="completion-motion completion-seams"
+            d="m32 5 4.5 31L7 46m29.5-10L57 19M32 14l18 32H14Zm4.5 22L32 60"
+            stroke="#f1fbff"
+            strokeWidth=".75"
+            opacity="0"
+          />
         </g>
         <g className="completion-motion" filter={url(glow)}>
           {facets.map((facet, index) => (
             <g className="completion-shard" key={facet.path} opacity="0">
+              <path
+                d={facet.path}
+                fill={url(gradient)}
+                fillOpacity=".76"
+                stroke={url(gradient)}
+                strokeWidth=".7"
+              />
               <g clipPath={url(`${crystal}-facet-${index}`)}>
                 <CrystalGeometry gradient={gradient} />
               </g>
             </g>
+          ))}
+          {particles.map((_, index) => (
+            <path
+              className="completion-particle-trail"
+              key={`trail-${index}`}
+              stroke={
+                index % 3 === 0
+                  ? "#f5ffff"
+                  : index % 3 === 1
+                    ? "#bc9fff"
+                    : "#7bf4df"
+              }
+              strokeWidth=".85"
+              strokeLinecap="round"
+              opacity="0"
+            />
           ))}
           {particles.map((particle, index) => (
             <circle
@@ -509,13 +587,6 @@ export function CrystalCompletion() {
             />
           ))}
         </g>
-        <path
-          className="completion-motion completion-rest"
-          d="m32 24 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z"
-          fill={url(gradient)}
-          filter={url(glow)}
-          opacity="0"
-        />
       </svg>
     </div>
   );

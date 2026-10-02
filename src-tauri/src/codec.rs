@@ -2017,6 +2017,502 @@ mod tests {
             .is_some());
     }
 
+    fn appearance_fixture(file_kind: &str, pointer: &str, value: Value) -> Setting {
+        Setting {
+            source: "lunar".into(),
+            file_kind: file_kind.into(),
+            pointer: pointer.into(),
+            value,
+            ..fixture()
+        }
+    }
+
+    fn appearance_values(settings: &[Setting]) -> BTreeMap<(String, String), Value> {
+        settings
+            .iter()
+            .map(|setting| {
+                (
+                    (setting.file_kind.clone(), setting.pointer.clone()),
+                    setting.value.clone(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn previous_compact_golden_codes_keep_dictionary_colors_and_viewport() {
+        let fixtures = [
+            (2, "PRS2:WnKoZm8f8lpLHu_0MpNNu7DM3VmxQfDXxbPNNWCyDSkLGICXAs5qvaKApTEuMC4zpzEuMjEuMTHAAZGTAQGSktCTy0ApAAAAAAAAktH_XdKAEjRWAw"),
+            (3, "PRS3:iTFLdq1tm0PdEcwbtSZFWSJ95z5y5D_GvTZoaxz-sYiLIYCYA85qvaKApTEuMC4zpzEuMjEuMTHAAZGTAQGSktCTy0ApAAAAAAAAktH_XdKAEjRWkstAjgAAAAAAAMtAgOAAAAAAAAM"),
+        ];
+        for (version, code) in fixtures {
+            let decoded = decode(code).unwrap();
+            assert_eq!(decoded.format_version, version);
+            assert_eq!(decoded.application_version, "1.0.3");
+            assert_eq!(decoded.settings.len(), 2);
+            assert_eq!(
+                appearance_values(&decoded.settings),
+                BTreeMap::from([
+                    (("mods".into(), "/FPS/x".into()), json!(12.5)),
+                    (
+                        (
+                            "mods".into(),
+                            "/KEYSTROKES/options/backgroundPressedColor/value".into()
+                        ),
+                        json!(-2146290602_i64)
+                    ),
+                ])
+            );
+            assert_eq!(
+                decoded.metadata.hud_viewport,
+                (version == 3).then_some(HudViewport {
+                    width: 960.0,
+                    height: 540.0,
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn all_verified_appearance_defaults_survive_legacy_and_compact_formats() {
+        let selected: Vec<_> = crate::appearance::fields()
+            .iter()
+            .filter_map(|field| {
+                field.default.as_ref().map(|value| {
+                    appearance_fixture(&field.file_kind, &field.pointer, value.clone())
+                })
+            })
+            .collect();
+        assert!(!selected.is_empty());
+        let expected = appearance_values(&selected);
+        assert_eq!(expected.len(), selected.len());
+        let mut candidate = ShareEnvelope {
+            format_version: 1,
+            created_at: "2026-10-02T00:00:00Z".into(),
+            application_version: "1.0.4".into(),
+            metadata: metadata(),
+            settings: prepare_settings(selected).unwrap(),
+        };
+        let decoded = decode(&legacy_code(&candidate)).unwrap();
+        assert_eq!(appearance_values(&decoded.settings), expected);
+        candidate.format_version = 2;
+        let compact = CompactEnvelope::try_from(&candidate).unwrap();
+        let dictionary = dictionary_pointers(compact.clone());
+        assert!(dictionary.groups.iter().any(|group| {
+            group.settings.iter().any(|setting| {
+                POINTER_DICTIONARY
+                    .binary_search(&setting.pointer.as_str())
+                    .is_err()
+                    && setting.dictionary.is_none()
+            })
+        }));
+        for version in [2, 3] {
+            candidate.format_version = version;
+            candidate.metadata.hud_viewport = (version == 3).then_some(HudViewport {
+                width: 960.0,
+                height: 540.0,
+            });
+            let compact = CompactEnvelope::try_from(&candidate).unwrap();
+            for compact in [
+                compact.clone(),
+                dictionary_pointers(compact.clone()),
+                prefix_pointers(compact),
+            ] {
+                let code = if version == 2 {
+                    compact_code(&compact)
+                } else {
+                    frame_payload(
+                        PREFIX,
+                        &serialize_compact(&CompactHudEnvelope {
+                            compact,
+                            hud_viewport: candidate.metadata.hud_viewport.clone(),
+                        })
+                        .unwrap()
+                        .1,
+                    )
+                };
+                let decoded = decode(&code).unwrap();
+                assert_eq!(decoded.settings.len(), expected.len());
+                assert_eq!(appearance_values(&decoded.settings), expected);
+                assert_eq!(decoded.metadata, candidate.metadata);
+                let serialized = serde_json::to_string(&decoded).unwrap();
+                for private_fixture in [
+                    fixture().id,
+                    fixture().label,
+                    fixture().category,
+                    fixture().group,
+                    fixture().profile,
+                ] {
+                    assert!(!serialized.contains(&private_fixture));
+                }
+                assert!(decoded
+                    .settings
+                    .iter()
+                    .all(|setting| setting.profile.starts_with("profile-")));
+            }
+        }
+    }
+
+    #[test]
+    fn historical_numeric_string_fields_keep_decoding_with_valid_current_fields() {
+        let pointers = [
+            "/BLOCK_OUTLINE/options/blockOutlineWidth",
+            "/CHAT/options/timeBasedStackMessagesTimeframe",
+            "/COMBO/options/backgroundHeight",
+            "/FOG/options/renderDistanceFogDensity",
+            "/FOG/options/waterFogDensity",
+            "/SKYBLOCK/SKYBLOCK_CRYSTAL_HOLLOWS_MAP/options/scale",
+            "/SKYBLOCK/SKYBLOCK_ENDERMAN_SLAYER/options/scale",
+            "/TIME_CHANGER/options/horizonYLevel",
+            "/TIME_CHANGER/options/timeChangerTime",
+            "/TOGGLE_SNEAK/options/flyBoostAmount",
+            "/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize",
+            "/CROSSHAIR/CROSSHAIR_FRIENDLY/options/gridSize",
+            "/CROSSHAIR/CROSSHAIR_ENEMY/options/gridSize",
+        ];
+        let mut selected: Vec<_> = pointers
+            .iter()
+            .map(|pointer| Setting {
+                profile: "profile-1".into(),
+                ..appearance_fixture("mods", pointer, json!("1"))
+            })
+            .collect();
+        selected.push(Setting {
+            profile: "profile-1".into(),
+            ..appearance_fixture("mods", "/FPS/enabled", json!(true))
+        });
+        let expected = appearance_values(&selected);
+        let mut candidate = ShareEnvelope {
+            format_version: 1,
+            created_at: "2026-10-02T00:00:00Z".into(),
+            application_version: "1.0.3".into(),
+            metadata: metadata(),
+            settings: selected,
+        };
+        assert_eq!(
+            appearance_values(&decode(&legacy_code(&candidate)).unwrap().settings),
+            expected
+        );
+        for version in [2, 3] {
+            candidate.format_version = version;
+            candidate.metadata.hud_viewport = (version == 3).then_some(HudViewport {
+                width: 960.0,
+                height: 540.0,
+            });
+            let decoded = decode(&encode_envelope(&candidate).unwrap().code).unwrap();
+            assert_eq!(appearance_values(&decoded.settings), expected);
+            assert_eq!(decoded.settings.len(), 14);
+            for pointer in pointers {
+                let setting = decoded
+                    .settings
+                    .iter()
+                    .find(|setting| setting.pointer == pointer)
+                    .unwrap();
+                assert_eq!(setting.value, json!("1"));
+                assert!(!crate::safety::lunar_value_is_safe(
+                    "mods",
+                    pointer,
+                    &setting.value
+                ));
+            }
+            assert!(decoded
+                .settings
+                .iter()
+                .any(|setting| setting.pointer == "/FPS/enabled" && setting.value == json!(true)));
+        }
+        candidate.format_version = 2;
+        candidate.metadata.hud_viewport = None;
+        for unsafe_value in [json!("account-name"), json!("NaN"), json!("99999999999")] {
+            candidate.settings[0].value = unsafe_value;
+            assert!(decode(&encode_envelope(&candidate).unwrap().code).is_err());
+        }
+    }
+
+    #[test]
+    fn every_verified_public_field_survives_current_wire_encoding() {
+        let selected: Vec<_> = crate::appearance::fields()
+            .iter()
+            .map(|field| {
+                let value = match field.kind.as_str() {
+                    "bool" => json!(!field
+                        .default
+                        .as_ref()
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)),
+                    "enum" => json!(field
+                        .allowed
+                        .iter()
+                        .find(|allowed| field.default.as_ref() != Some(&json!(allowed)))
+                        .or_else(|| field.allowed.first())
+                        .expect("A verified enum must have allowed values")),
+                    "number" => {
+                        let min = field
+                            .min
+                            .expect("A verified number must have a lower bound");
+                        let max = field
+                            .max
+                            .expect("A verified number must have an upper bound");
+                        let value = min + (max - min) / 2.0;
+                        if field.integer {
+                            json!(value.round() as i64)
+                        } else {
+                            json!(value)
+                        }
+                    }
+                    _ => panic!("Unexpected verified public setting kind"),
+                };
+                assert!(crate::safety::lunar_value_is_safe(
+                    &field.file_kind,
+                    &field.pointer,
+                    &value
+                ));
+                appearance_fixture(&field.file_kind, &field.pointer, value)
+            })
+            .collect();
+        let expected = appearance_values(&selected);
+        assert_eq!(expected.len(), crate::appearance::fields().len());
+        assert!(crate::appearance::fields()
+            .iter()
+            .any(|field| field.default.is_none()));
+        assert!(crate::appearance::fields()
+            .iter()
+            .any(|field| field.role == "keybind-value"));
+        let mut metadata = metadata();
+        metadata.hud_viewport = Some(HudViewport {
+            width: 960.0,
+            height: 540.0,
+        });
+        let encoded = encode(selected, metadata.clone()).unwrap();
+        assert!(encoded.code.starts_with(PREFIX));
+        assert_eq!(encoded.setting_count, expected.len());
+        let decoded = decode(&encoded.code).unwrap();
+        assert_eq!(appearance_values(&decoded.settings), expected);
+        assert_eq!(decoded.metadata, metadata);
+    }
+
+    #[test]
+    fn multiple_mod_options_and_nondefault_root_and_child_sizes_roundtrip() {
+        let mut selected = vec![
+            appearance_fixture("mods", "/KEYSTROKES/enabled", json!(true)),
+            appearance_fixture("mods", "/KEYSTROKES/options/boxSize", json!(24.75)),
+            appearance_fixture("mods", "/KEYSTROKES/options/borderThickness", json!(2.25)),
+            appearance_fixture("mods", "/KEYSTROKES/options/spacebarThickness", json!(3.0)),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/animation",
+                json!("Triangulate"),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/keystrokesMode",
+                json!("individual"),
+            ),
+            appearance_fixture("mods", "/KEYSTROKES/KEYSTROKE_KEY_W/enabled", json!(false)),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/KEYSTROKE_KEY_W/options/scale",
+                json!(1.25),
+            ),
+            appearance_fixture(
+                "mods",
+                "/ARMORSTATUS/options/damageDisplay",
+                json!("percent"),
+            ),
+            appearance_fixture(
+                "mods",
+                "/ARMORSTATUS/ARMORSTATUS_HELMET_CHILD/options/scale",
+                json!(2.5),
+            ),
+            appearance_fixture("mods", "/FPS/options/scale", json!(1.75)),
+            appearance_fixture("mods", "/FPS/options/backgroundWidth", json!(61)),
+            appearance_fixture("mods", "/FPS/options/backgroundHeight", json!(21)),
+            appearance_fixture(
+                "mods",
+                "/COORDINATES/options/decimalCoordinates",
+                json!(true),
+            ),
+            appearance_fixture("mods", "/COORDINATES/options/mode", json!("horizontal")),
+            appearance_fixture(
+                "mods",
+                "/QUICKPLAY/options/quickplayUIKeybind/value",
+                json!("KEY_F6"),
+            ),
+            appearance_fixture(
+                "mods",
+                "/QUICKPLAY/options/quickplayUIKeybind/modifier",
+                json!("KEY_LSHIFT"),
+            ),
+            appearance_fixture(
+                "mods",
+                "/QUICKPLAY/options/quickplayUIKeybind/alt",
+                json!(true),
+            ),
+            appearance_fixture(
+                "mods",
+                "/QUICKPLAY/options/quickplayUIKeybind/shift",
+                json!(false),
+            ),
+            appearance_fixture(
+                "mods",
+                "/QUICKPLAY/options/quickplayUIKeybind/control",
+                json!(true),
+            ),
+            appearance_fixture("mods", "/WAYPOINTS/options/boxPadding", json!(2.5)),
+            appearance_fixture("mods", "/ACTION_BAR/options/textShadow", json!("true")),
+        ];
+        selected.push(fixture());
+        let expected = appearance_values(&selected);
+        let mut candidate = ShareEnvelope {
+            format_version: 1,
+            created_at: "2026-10-02T00:00:00Z".into(),
+            application_version: "1.0.4".into(),
+            metadata: metadata(),
+            settings: prepare_settings(selected.clone()).unwrap(),
+        };
+        let legacy = decode(&legacy_code(&candidate)).unwrap();
+        assert_eq!(appearance_values(&legacy.settings), expected);
+        for with_geometry in [false, true] {
+            candidate.metadata.hud_viewport = with_geometry.then_some(HudViewport {
+                width: 960.0,
+                height: 540.0,
+            });
+            let encoded = encode(selected.clone(), candidate.metadata.clone()).unwrap();
+            assert!(encoded
+                .code
+                .starts_with(if with_geometry { "PRS3:" } else { "PRS2:" }));
+            let decoded = decode(&encoded.code).unwrap();
+            assert_eq!(appearance_values(&decoded.settings), expected);
+            assert_eq!(decoded.metadata, candidate.metadata);
+            assert!(decoded
+                .settings
+                .iter()
+                .any(|setting| setting.source == "minecraft"));
+            assert!(decoded
+                .settings
+                .iter()
+                .any(|setting| setting.source == "lunar"));
+        }
+        for (pointer, value) in [
+            (
+                "/QUICKPLAY/options/quickplayUIKeybind/value",
+                json!("KEY_PRIVATE_COMMAND"),
+            ),
+            ("/QUICKPLAY/options/quickplayUIKeybind/alt", json!("true")),
+            ("/KEYSTROKES/options/animation", json!("Run a command")),
+            ("/KEYSTROKES/options/boxSize", json!(100.0)),
+            ("/KEYSTROKES/KEYSTROKE_KEY_W/options/scale", json!("1.25")),
+        ] {
+            let invalid = appearance_fixture("mods", pointer, value);
+            assert!(encode(vec![invalid.clone()], metadata()).is_err());
+            candidate.format_version = 2;
+            candidate.metadata.hud_viewport = None;
+            candidate.settings = vec![Setting {
+                profile: "profile-1".into(),
+                ..invalid
+            }];
+            let forged = CompactEnvelope::try_from(&candidate).unwrap();
+            assert!(decode(&compact_code(&forged)).is_err());
+        }
+    }
+
+    #[test]
+    fn keystrokes_colors_preserve_argb_alpha_chroma_speed_and_mode() {
+        let selected = vec![
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/textColor/value",
+                json!(-2146290602_i64),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/textPressedColor/value",
+                json!(-1),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/backgroundColor/value",
+                json!(0x00123456_i64),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/backgroundPressedColor/value",
+                json!(i32::MIN),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/borderColor/value",
+                json!(i32::MAX),
+            ),
+            appearance_fixture("mods", "/KEYSTROKES/options/textColor/chroma", json!(true)),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/textColor/chromaSpeed",
+                json!(91),
+            ),
+            appearance_fixture(
+                "mods",
+                "/KEYSTROKES/options/textColor/chromaType",
+                json!("shift"),
+            ),
+        ];
+        let expected = appearance_values(&selected);
+        for viewport in [
+            None,
+            Some(HudViewport {
+                width: 1920.0,
+                height: 1080.0,
+            }),
+        ] {
+            let mut metadata = metadata();
+            metadata.hud_viewport = viewport;
+            let encoded = encode(selected.clone(), metadata).unwrap();
+            let decoded = decode(&encoded.code).unwrap();
+            assert_eq!(encoded.setting_count, selected.len());
+            assert_eq!(appearance_values(&decoded.settings), expected);
+            for setting in &decoded.settings {
+                if setting.pointer.ends_with("/value") {
+                    assert!(setting.value.as_i64().is_some());
+                }
+            }
+            let color = decoded
+                .settings
+                .iter()
+                .find(|setting| setting.pointer == "/KEYSTROKES/options/textColor/value")
+                .unwrap()
+                .value
+                .as_i64()
+                .unwrap();
+            assert_eq!((color as u32) >> 24, 128);
+            assert_eq!((color as u32) & 0x00ff_ffff, 0x0012_3456);
+        }
+        for (pointer, value) in [
+            ("/KEYSTROKES/options/textColor/value", json!(1_i64 << 32)),
+            ("/KEYSTROKES/options/textColor/value", json!("-1")),
+            ("/KEYSTROKES/options/textColor/chroma", json!("true")),
+            (
+                "/KEYSTROKES/options/textColor/chromaType",
+                json!("private-custom-mode"),
+            ),
+            ("/KEYSTROKES/options/unverifiedColor/value", json!(-1)),
+        ] {
+            let setting = appearance_fixture("mods", pointer, value);
+            assert!(encode(vec![setting.clone()], metadata()).is_err());
+            let mut forged = ShareEnvelope {
+                format_version: 2,
+                created_at: "2026-10-02T00:00:00Z".into(),
+                application_version: "1.0.4".into(),
+                metadata: metadata(),
+                settings: vec![Setting {
+                    profile: "profile-1".into(),
+                    ..setting
+                }],
+            };
+            assert!(decode(&encode_envelope(&forged).unwrap().code).is_err());
+            forged.format_version = 1;
+            assert!(decode(&legacy_code(&forged)).is_err());
+        }
+    }
+
     #[test]
     fn compact_total_count_is_bounded_across_individually_valid_groups() {
         let mut candidate = CompactEnvelope::try_from(&envelope()).unwrap();

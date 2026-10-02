@@ -24,7 +24,7 @@ pub fn validate_setting(setting: &Setting) -> Result<(), String> {
                     .as_str()
                     .is_some_and(|raw| minecraft_value_is_safe(&setting.pointer, raw))
         }
-        "lunar" => lunar_value_is_safe(&setting.file_kind, &setting.pointer, &setting.value),
+        "lunar" => lunar_share_value_is_safe(&setting.file_kind, &setting.pointer, &setting.value),
         _ => false,
     };
     if allowed {
@@ -242,6 +242,42 @@ pub fn keybind_is_safe(raw: &str) -> bool {
 }
 
 pub fn lunar_value_is_safe(file_kind: &str, pointer: &str, value: &Value) -> bool {
+    if let Some(field) = crate::appearance::field(file_kind, pointer) {
+        return match field.kind.as_str() {
+            "bool" => value.is_boolean(),
+            "enum" => value
+                .as_str()
+                .is_some_and(|raw| field.allowed.iter().any(|allowed| allowed == raw)),
+            "number" => {
+                let integer =
+                    !field.integer || value.as_i64().is_some() || value.as_u64().is_some();
+                integer
+                    && value.as_f64().is_some_and(|number| {
+                        number.is_finite()
+                            && (field.min.unwrap_or(-32768.0)..=field.max.unwrap_or(32768.0))
+                                .contains(&number)
+                    })
+            }
+            "numericString" => value.as_str().is_some_and(|raw| {
+                finite_number(
+                    raw,
+                    field.min.unwrap_or(-32768.0),
+                    field.max.unwrap_or(32768.0),
+                ) && (!field.integer
+                    || raw.parse::<f64>().is_ok_and(|number| number.fract() == 0.0))
+            }),
+            _ => false,
+        };
+    }
+    legacy_lunar_value_is_safe(file_kind, pointer, value)
+}
+
+pub fn lunar_share_value_is_safe(file_kind: &str, pointer: &str, value: &Value) -> bool {
+    lunar_value_is_safe(file_kind, pointer, value)
+        || legacy_lunar_value_is_safe(file_kind, pointer, value)
+}
+
+fn legacy_lunar_value_is_safe(file_kind: &str, pointer: &str, value: &Value) -> bool {
     static SCHEMA: OnceLock<BTreeMap<String, Vec<String>>> = OnceLock::new();
     let schema = SCHEMA.get_or_init(|| {
         serde_json::from_str(include_str!("lunar_schema.json"))
@@ -383,5 +419,42 @@ mod tests {
                 &json!(anchor)
             ));
         }
+    }
+
+    #[test]
+    fn verified_appearance_defaults_are_safe_and_color_types_are_closed() {
+        for field in crate::appearance::fields() {
+            if let Some(value) = &field.default {
+                assert!(lunar_value_is_safe(&field.file_kind, &field.pointer, value));
+            }
+        }
+        let color = "/KEYSTROKES/options/textPressedColor/value";
+        assert!(lunar_value_is_safe("mods", color, &json!(-16777216)));
+        for value in [
+            json!(-2147483649_i64),
+            json!(2147483648_u64),
+            json!(0.5),
+            json!("-1"),
+        ] {
+            assert!(!lunar_value_is_safe("mods", color, &value));
+        }
+        assert!(!lunar_value_is_safe("general", color, &json!(-1)));
+        assert!(!lunar_value_is_safe(
+            "mods",
+            "/KEYSTROKES/options/futureColor/value",
+            &json!(-1)
+        ));
+        let mode = "/KEYSTROKES/options/textColor/chromaType";
+        assert!(lunar_value_is_safe("mods", mode, &json!("wave")));
+        assert!(lunar_value_is_safe("mods", mode, &json!("shift")));
+        assert!(!lunar_value_is_safe(
+            "mods",
+            mode,
+            &json!("private.example")
+        ));
+        let speed = "/KEYSTROKES/options/textColor/chromaSpeed";
+        assert!(lunar_value_is_safe("mods", speed, &json!(100)));
+        assert!(!lunar_value_is_safe("mods", speed, &json!(0)));
+        assert!(!lunar_value_is_safe("mods", speed, &json!(100.5)));
     }
 }
