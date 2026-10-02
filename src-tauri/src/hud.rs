@@ -501,7 +501,7 @@ mod tests {
             serde_json::to_string(&lunar_options).unwrap(),
         )
         .unwrap();
-        ScanReport {
+        let report = ScanReport {
             files: vec![
                 ScanFile {
                     id: "minecraft:options".into(),
@@ -528,7 +528,11 @@ mod tests {
             settings: crate::minecraft::parse_settings(options, "options", "Minecraft").unwrap(),
             lunar_profiles: vec!["Default".into()],
             ..ScanReport::default()
+        };
+        for file in &report.files {
+            assert!(crate::backup::read_config(Path::new(&file.path)).is_ok());
         }
+        report
     }
 
     #[test]
@@ -671,7 +675,7 @@ mod tests {
     #[test]
     fn prospective_gui_scale_only_uses_a_supported_target_field() {
         let directory = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(directory.path()).unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
         let mut local = report(&root, "guiScale:2\n", r#"{"useMinecraftScale":"all"}"#);
         let incoming =
             crate::minecraft::parse_settings("guiScale:4\n", "options", "Other").unwrap();
@@ -701,7 +705,7 @@ mod tests {
     #[test]
     fn missing_lunar_gui_field_does_not_guess_a_saved_text_value() {
         let directory = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(directory.path()).unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
         let local = report(&root, "guiScale:2\n", "{}");
         fs::write(
             root.join("optionsLC.txt"),
@@ -755,7 +759,7 @@ mod tests {
         }
         assert!(renderer_version(None).is_none());
         let directory = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(directory.path()).unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
         let mut local = report(&root, "guiScale:2\n", "{}");
         let size = window(1920, 1080);
         for version in [
