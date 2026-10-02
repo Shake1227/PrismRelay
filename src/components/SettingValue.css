@@ -1,0 +1,30 @@
+.setting-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.setting-color-swatch {
+  display: inline-flex;
+  flex: 0 0 13px;
+  height: 13px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background-color: #fff;
+  background-image: repeating-conic-gradient(#8f929b 0 25%, #fff 0 50%);
+  background-size: 6px 6px;
+}
+.setting-color-swatch > span {
+  width: 100%;
+  height: 100%;
+}
+.setting-color-opacity {
+  color: var(--muted);
+}
+.tree-value.setting-color-value {
+  max-width: 138px;
+}

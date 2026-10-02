@@ -53,6 +53,13 @@ pub fn default_candidate_paths(
 }
 
 pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
+    scan_for_profile(request, None)
+}
+
+pub fn scan_for_profile(
+    request: ScanRequest,
+    preferred_lunar_profile: Option<&str>,
+) -> Result<ScanReport, String> {
     let home = dirs::home_dir().ok_or("The home folder could not be located.")?;
     let platform = platform_name();
     let app_data = if platform == "Windows" {
@@ -92,21 +99,29 @@ pub fn scan(request: ScanRequest) -> Result<ScanReport, String> {
         } else {
             root.clone()
         };
-        inspect_lunar(
-            &game,
-            "Default",
-            &mut report,
-            &mut seen,
-            &mut lunar_profiles,
-        );
+        let mut candidates = vec![(game.clone(), "Default".to_string())];
         for directory in child_directories(&game, &mut report.warnings) {
             let profile = directory
                 .file_name()
                 .and_then(|name| name.to_str())
-                .unwrap_or("Profile");
+                .unwrap_or("Profile")
+                .to_string();
+            candidates.push((directory, profile));
+        }
+        let names = candidates.iter().map(|(_, name)| name.clone()).collect();
+        let active = active_lunar_profile(&game, &names);
+        let preferred = preferred_lunar_profile.or(active.as_deref());
+        candidates.sort_by(|left, right| {
+            (Some(left.1.as_str()) != preferred, &left.1, &left.0).cmp(&(
+                Some(right.1.as_str()) != preferred,
+                &right.1,
+                &right.0,
+            ))
+        });
+        for (directory, profile) in candidates {
             inspect_lunar(
                 &directory,
-                profile,
+                &profile,
                 &mut report,
                 &mut seen,
                 &mut lunar_profiles,
@@ -406,7 +421,7 @@ fn inspect_lunar(
                     file_kind: (*kind).into(),
                     profile: profile.into(),
                 });
-                match crate::lunar::parse_settings(&content, kind, profile) {
+                match crate::lunar::parse_settings_with_defaults(&content, kind, profile) {
                     Ok(settings) => {
                         let available = 10000usize.saturating_sub(report.settings.len());
                         if settings.len() > available {
@@ -656,6 +671,91 @@ mod tests {
     }
 
     #[test]
+    fn selected_lunar_preset_is_complete_when_other_presets_fill_the_scan_limit() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(temporary.path()).unwrap();
+        let game = root.join("settings/game");
+        let mut document = serde_json::json!({});
+        let legacy: BTreeMap<String, serde_json::Value> =
+            serde_json::from_str(include_str!("lunar_schema.json")).unwrap();
+        for key in legacy.keys().filter_map(|key| key.strip_prefix("mods:/")) {
+            if let Some(module) = key.split('/').next() {
+                if crate::safety::lunar_value_is_safe(
+                    "mods",
+                    &format!("/{module}/enabled"),
+                    &serde_json::json!(false),
+                ) {
+                    document[module] = serde_json::json!({ "enabled": false });
+                }
+            }
+        }
+        for field in crate::appearance::fields()
+            .iter()
+            .filter(|field| field.file_kind == "mods")
+        {
+            let mut parent = &mut document;
+            for token in field.component.trim_start_matches('/').split('/') {
+                let key = token.replace("~1", "/").replace("~0", "~");
+                parent = parent
+                    .as_object_mut()
+                    .unwrap()
+                    .entry(key)
+                    .or_insert_with(|| serde_json::json!({}));
+            }
+        }
+        let content = serde_json::to_string(&document).unwrap();
+        let expected =
+            crate::lunar::parse_settings_with_defaults(&content, "mods", "Zulu Selected").unwrap();
+        let profiles = 10_000 / expected.len() + 2;
+        assert!(profiles < MAX_DIRECTORIES);
+        for index in 0..profiles {
+            let name = if index + 1 == profiles {
+                "Zulu Selected".to_string()
+            } else {
+                format!("Alpha {index:03}")
+            };
+            fs::create_dir_all(game.join(&name)).unwrap();
+            fs::write(game.join(name).join("mods.json"), &content).unwrap();
+        }
+        fs::write(
+            game.join("profile_manager.json"),
+            r#"[{"name":"Zulu Selected","active":true}]"#,
+        )
+        .unwrap();
+        let request = ScanRequest {
+            minecraft_root: Some(root.join("absent").to_string_lossy().into()),
+            lunar_root: Some(root.to_string_lossy().into()),
+        };
+        for preferred in [None, Some("Zulu Selected")] {
+            let report = scan_for_profile(request.clone(), preferred).unwrap();
+            let actual: BTreeMap<_, _> = report
+                .settings
+                .iter()
+                .filter(|setting| setting.profile == "Zulu Selected")
+                .map(|setting| (&setting.pointer, &setting.value))
+                .collect();
+            let expected: BTreeMap<_, _> = expected
+                .iter()
+                .map(|setting| (&setting.pointer, &setting.value))
+                .collect();
+            assert_eq!(actual, expected);
+            assert_eq!(report.settings.len(), 10_000);
+            assert_eq!(report.lunar_profiles.len(), profiles);
+            assert_eq!(report.files.len(), profiles);
+        }
+        let report = scan_for_profile(request, Some("Alpha 000")).unwrap();
+        assert_eq!(
+            report
+                .settings
+                .iter()
+                .filter(|setting| setting.profile == "Alpha 000")
+                .count(),
+            expected.len()
+        );
+        assert_eq!(report.settings.len(), 10_000);
+    }
+
+    #[test]
     fn active_lunar_preset_matches_one_discovered_directory_only() {
         let temporary = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(temporary.path()).unwrap();
@@ -755,7 +855,21 @@ mod tests {
         assert!(report.minecraft_detected && report.lunar_detected);
         assert!(report.minecraft_versions.contains(&"1.21".into()));
         assert_eq!(report.files.len(), 2);
-        assert_eq!(report.settings.len(), 4);
+        for (source, pointer) in [
+            ("minecraft", "fov"),
+            ("lunar", "/FPS/enabled"),
+            ("lunar", "/FPS/x"),
+            ("lunar", "/WAYPOINTS/enabled"),
+        ] {
+            assert!(report
+                .settings
+                .iter()
+                .any(|setting| setting.source == source && setting.pointer == pointer));
+        }
+        assert!(report
+            .settings
+            .iter()
+            .all(|setting| { crate::safety::validate_setting(setting).is_ok() }));
         assert!(!report
             .settings
             .iter()

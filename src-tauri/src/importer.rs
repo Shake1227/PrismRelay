@@ -263,7 +263,7 @@ fn plan(
     {
         return Err("The import selection contains an unknown setting.".into());
     }
-    let report = crate::scanner::scan(request.clone())?;
+    let report = crate::scanner::scan_for_profile(request.clone(), Some(&target.lunar_profile))?;
     let mut warnings = report.warnings.clone();
     let mut selected_settings: Vec<Setting> = envelope
         .settings
@@ -383,7 +383,11 @@ fn plan(
             })
             .cloned()
             .or_else(|| {
-                if crate::lunar::is_module_enabled_setting(incoming) {
+                if crate::lunar::is_module_enabled_setting(incoming)
+                    || (incoming.source == "lunar"
+                        && crate::appearance::field(&incoming.file_kind, &incoming.pointer)
+                            .is_some())
+                {
                     let mut current = incoming.clone();
                     current.profile = profile.clone();
                     current.value = Value::Null;
@@ -446,7 +450,11 @@ fn plan(
                         &path,
                     )?
                 } else {
-                    crate::lunar::parse_settings(content, &current.file_kind, &current.profile)?
+                    crate::lunar::parse_settings_with_defaults(
+                        content,
+                        &current.file_kind,
+                        &current.profile,
+                    )?
                 };
                 let current_settings: BTreeMap<_, _> = captured
                     .into_iter()
@@ -511,7 +519,7 @@ fn plan(
             } else if file
                 .lunar_document
                 .as_ref()
-                .is_some_and(|document| crate::lunar::can_insert_module_enabled(document, incoming))
+                .is_some_and(|document| crate::lunar::can_insert_setting(document, incoming))
             {
                 let mut setting = incoming.clone();
                 setting.profile = profile.clone();
@@ -821,7 +829,7 @@ mod tests {
         );
         let before = preview(&first, &first_ids, &target, &request).unwrap();
         assert_eq!(before.selected_count, 1);
-        assert!(before.changes[0].current.is_null());
+        assert_eq!(before.changes[0].current, false);
         assert!(before.changes[0].changed);
         assert_eq!(before.target_files.len(), 1);
         let _lock = store.lock().unwrap();
@@ -877,6 +885,85 @@ mod tests {
     }
 
     #[test]
+    fn mod_colors_sizes_display_options_and_keybinds_import_twice_and_restore_sparse_files() {
+        let (_directory, request, target, store) = fixture();
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let original = "\u{feff}{ \"KEYSTROKES\": { \"enabled\":true, \"unknown\":0.9000000000000000001 }, \"COORDINATES\": {}, \"FPS\": {}, \"outside\":[\"unshared\"] }\r\n";
+        fs::write(&mods, original).unwrap();
+        let source = r#"{"KEYSTROKES":{"enabled":false,"options":{"backgroundColor":{"value":1074864691,"chroma":true,"chromaSpeed":75,"chromaType":"shift"},"backgroundPressedColor":{"value":-16711936},"boxSize":22,"scale":1.5,"spacebarThickness":2,"keyStrokesClicks":false,"keyStrokesMovement":false,"keyStrokesSpacebar":false,"leftCPS":true,"border":true,"borderThickness":2,"textShadow":true,"keyFadeDelay":0}},"COORDINATES":{"options":{"copyCoords":{"value":"KEY_C","modifier":"KEY_LCONTROL","control":true}}}}"#;
+        let explicit = crate::lunar::parse_settings(source, "mods", "Windows source").unwrap();
+        assert_eq!(explicit.len(), 20);
+        let (first, first_ids) = code(explicit.clone());
+        let before = preview(&first, &first_ids, &target, &request).unwrap();
+        assert_eq!(before.changes.len(), explicit.len());
+        assert!(before.changes.iter().all(|change| change.changed));
+        assert!(before
+            .changes
+            .iter()
+            .all(|change| !change.current.is_null()));
+        let _lock = store.lock().unwrap();
+        let first_backup = apply(
+            &store,
+            &first,
+            &first_ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        let document = crate::lunar::parse_document(&fs::read_to_string(&mods).unwrap()).unwrap();
+        for setting in &explicit {
+            assert_eq!(document.pointer(&setting.pointer), Some(&setting.value));
+        }
+        assert!(preview(&first, &first_ids, &target, &request)
+            .unwrap()
+            .changes
+            .iter()
+            .all(|change| !change.changed));
+        let defaults = crate::lunar::parse_settings_with_defaults(
+            r#"{"KEYSTROKES":{},"COORDINATES":{}}"#,
+            "mods",
+            "Mac source",
+        )
+        .unwrap()
+        .into_iter()
+        .filter(|setting| {
+            explicit
+                .iter()
+                .any(|first| first.pointer == setting.pointer)
+        })
+        .collect::<Vec<_>>();
+        assert_eq!(defaults.len(), explicit.len());
+        let (second, second_ids) = code(defaults.clone());
+        let before = preview(&second, &second_ids, &target, &request).unwrap();
+        assert!(before.changes.iter().any(|change| change.changed));
+        let second_backup = apply(
+            &store,
+            &second,
+            &second_ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        let second_text = fs::read_to_string(&mods).unwrap();
+        let document = crate::lunar::parse_document(&second_text).unwrap();
+        for setting in &defaults {
+            assert_eq!(document.pointer(&setting.pointer), Some(&setting.value));
+        }
+        assert!(second_text.contains("\"unknown\":0.9000000000000000001"));
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        for backup in [&second_backup, &first_backup] {
+            let updates = store.verify(backup, &report).unwrap();
+            store.apply(&report, &request, "restore", updates).unwrap();
+        }
+        assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+    }
+
+    #[test]
     fn sparse_lunar_enabled_preview_does_not_overwrite_invalid_existing_types() {
         let (_directory, request, target, store) = fixture();
         let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
@@ -912,13 +999,104 @@ mod tests {
     }
 
     #[test]
-    fn reviewed_lunar_numeric_types_convert_in_preview_apply_and_noop() {
+    fn historical_numeric_strings_migrate_without_guessing_obsolete_enum_ids() {
         let (_directory, request, target, store) = fixture();
         let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
             .join("settings/game/Destination/mods.json");
-        let original = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":1}},"TIME_CHANGER":{"options":{"timeChangerTime":"2"}},"future":0.123456789012345678901}"#;
+        let original = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":4}},"TIME_CHANGER":{"options":{"timeChangerTime":12000}},"CROSSHAIR":{"CROSSHAIR_NORMAL":{"options":{"gridSize":"crosshairGridMedium"}}},"FPS":{},"future":0.123456789012345678901}"#;
         fs::write(&mods, original).unwrap();
-        let (code, ids) = code(crate::lunar::parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"3"}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap());
+        let mut settings = crate::lunar::parse_settings(
+            r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":3}},"TIME_CHANGER":{"options":{"timeChangerTime":14000}},"CROSSHAIR":{"CROSSHAIR_NORMAL":{"options":{"gridSize":"crosshairGridSmall"}}},"FPS":{"enabled":true}}"#,
+            "mods",
+            "source",
+        )
+        .unwrap();
+        assert_eq!(settings.len(), 4);
+        for setting in &mut settings {
+            setting.value = match setting.pointer.as_str() {
+                "/TOGGLE_SNEAK/options/flyBoostAmount" => serde_json::json!("3.0"),
+                "/TIME_CHANGER/options/timeChangerTime" => serde_json::json!("14000"),
+                "/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize" => serde_json::json!("13"),
+                _ => setting.value.clone(),
+            };
+        }
+        let (shared, ids) = code(settings);
+        let before = preview(&shared, &ids, &target, &request).unwrap();
+        assert_eq!(before.selected_count, 3);
+        assert!(before
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("will be skipped")));
+        assert_eq!(
+            before
+                .changes
+                .iter()
+                .find(|change| change.label == "Fly Boost Amount")
+                .map(|change| &change.incoming),
+            Some(&serde_json::json!("3.0"))
+        );
+        let _lock = store.lock().unwrap();
+        let backup = apply(
+            &store,
+            &shared,
+            &ids,
+            &target,
+            &request,
+            true,
+            &before.fingerprint,
+        )
+        .unwrap();
+        let output = fs::read_to_string(&mods).unwrap();
+        let document = crate::lunar::parse_document(&output).unwrap();
+        assert_eq!(
+            document.pointer("/TOGGLE_SNEAK/options/flyBoostAmount"),
+            Some(&serde_json::json!(3))
+        );
+        assert_eq!(
+            document.pointer("/TIME_CHANGER/options/timeChangerTime"),
+            Some(&serde_json::json!(14000))
+        );
+        assert_eq!(
+            document.pointer("/CROSSHAIR/CROSSHAIR_NORMAL/options/gridSize"),
+            Some(&serde_json::json!("crosshairGridMedium"))
+        );
+        assert_eq!(
+            document.pointer("/FPS/enabled"),
+            Some(&serde_json::json!(true))
+        );
+        assert!(output.contains("0.123456789012345678901"));
+        assert!(preview(&shared, &ids, &target, &request)
+            .unwrap()
+            .changes
+            .iter()
+            .all(|change| !change.changed));
+        let report = crate::scanner::scan(request.clone()).unwrap();
+        let updates = store.verify(&backup, &report).unwrap();
+        store.apply(&report, &request, "restore", updates).unwrap();
+        assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+        for incoming in [
+            serde_json::json!("3.5"),
+            serde_json::json!("9"),
+            serde_json::json!("NaN"),
+        ] {
+            assert!(crate::lunar::value_for_existing_type(
+                "mods",
+                "/TOGGLE_SNEAK/options/flyBoostAmount",
+                &serde_json::json!(4),
+                &incoming
+            )
+            .is_none());
+        }
+    }
+
+    #[test]
+    fn primary_lunar_numbers_apply_repeat_restore_and_reject_string_targets() {
+        let (_directory, request, target, store) = fixture();
+        let mods = PathBuf::from(request.lunar_root.as_ref().unwrap())
+            .join("settings/game/Destination/mods.json");
+        let original = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":2}},"TIME_CHANGER":{"options":{"timeChangerTime":2}},"future":0.123456789012345678901}"#;
+        fs::write(&mods, original).unwrap();
+        let (code, ids) = code(crate::lunar::parse_settings(r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":3}},"TIME_CHANGER":{"options":{"timeChangerTime":4}}}"#, "mods", "source").unwrap());
         let before = preview(&code, &ids, &target, &request).unwrap();
         assert_eq!(before.selected_count, 2);
         assert!(before.changes.iter().all(|change| change.changed));
@@ -936,8 +1114,8 @@ mod tests {
         assert_eq!(
             fs::read_to_string(&mods).unwrap(),
             original
-                .replace("\"flyBoostAmount\":1", "\"flyBoostAmount\":3")
-                .replace("\"timeChangerTime\":\"2\"", "\"timeChangerTime\":\"4\"")
+                .replace("\"flyBoostAmount\":2", "\"flyBoostAmount\":3")
+                .replace("\"timeChangerTime\":2", "\"timeChangerTime\":4")
         );
         let repeated = preview(&code, &ids, &target, &request).unwrap();
         assert!(repeated.changes.iter().all(|change| !change.changed));
@@ -945,6 +1123,12 @@ mod tests {
         let updates = store.verify(&backup, &report).unwrap();
         store.apply(&report, &request, "restore", updates).unwrap();
         assert_eq!(fs::read_to_string(&mods).unwrap(), original);
+        let damaged = r#"{"TOGGLE_SNEAK":{"options":{"flyBoostAmount":"1"}},"TIME_CHANGER":{"options":{"timeChangerTime":"2"}}}"#;
+        fs::write(&mods, damaged).unwrap();
+        let count = store.list().unwrap().len();
+        assert!(preview(&code, &ids, &target, &request).is_err());
+        assert_eq!(fs::read_to_string(&mods).unwrap(), damaged);
+        assert_eq!(store.list().unwrap().len(), count);
     }
 
     #[test]

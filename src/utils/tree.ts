@@ -1,4 +1,5 @@
 import type { Setting } from "../models";
+import { settingLabel } from "./appearance";
 
 export interface SettingNode {
   key: string;
@@ -24,7 +25,7 @@ export function buildTree(
       setting.source === "minecraft" ? "Minecraft" : "Lunar Client";
     if (
       query &&
-      !`${source} ${setting.category} ${setting.group} ${setting.label} ${setting.pointer} ${translateLabel(setting.category)} ${translateLabel(setting.group)} ${translateLabel(setting.label)}`
+      !`${source} ${setting.category} ${setting.group} ${setting.label} ${setting.pointer} ${translateLabel(setting.category)} ${translateLabel(setting.group)} ${settingLabel(setting, translateLabel)}`
         .toLocaleLowerCase()
         .includes(query)
     )
